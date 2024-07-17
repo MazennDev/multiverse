@@ -5,6 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { toast } from '@/components/ui/use-toast'
 
 export default function SetUsername() {
   const [username, setUsername] = useState('')
@@ -25,7 +26,16 @@ export default function SetUsername() {
 
       if (error) {
         console.error('Error setting username:', error)
+        toast({
+          title: "Erreur",
+          description: "Impossible de définir le nom d'utilisateur. Veuillez réessayer.",
+          variant: "destructive",
+        })
       } else {
+        toast({
+          title: "Succès",
+          description: "Votre nom d'utilisateur a été défini avec succès.",
+        })
         router.push('/')
         router.refresh() // Force a refresh to update the Navbar
       }
@@ -35,20 +45,22 @@ export default function SetUsername() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-purple-900 to-blue-900 p-4">
-      <h1 className="text-4xl font-bold text-white mb-8">Choisissez votre nom d&apos;utilisateur</h1>
-      <form onSubmit={handleSubmit} className="w-full max-w-md">
-        <Input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Nom d'utilisateur"
-          className="mb-4"
-        />
-        <Button type="submit" disabled={loading || !username} className="w-full">
-          {loading ? 'Chargement...' : 'Confirmer'}
-        </Button>
-      </form>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="card w-full max-w-md">
+        <h1 className="text-3xl font-bold mb-6 text-center">Choisissez votre nom d&apos;utilisateur</h1>
+        <form onSubmit={handleSubmit}>
+          <Input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Nom d'utilisateur"
+            className="mb-4"
+          />
+          <Button type="submit" disabled={loading || !username} className="w-full">
+            {loading ? 'Chargement...' : 'Confirmer'}
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }
