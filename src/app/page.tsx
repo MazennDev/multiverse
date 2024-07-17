@@ -60,7 +60,7 @@ export default function Home() {
     <div className="min-h-screen py-8">
       <div className="container mx-auto px-4 max-w-4xl">
       <h1 className="text-4xl font-bold mb-6 text-white text-center">Multivers</h1>
-      <p className="text-xl text-gray-300 mb-8">Le Multivers, en Site.</p>
+      <p className="text-xl text-gray-300 mb-8 text-center">Le Multivers, en Site.</p>
         <div className="flex justify-center space-x-4 mb-8">
           <Button asChild className="bg-indigo-500/10 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-200 font-medium py-2 px-4 rounded transition-all duration-200 ease-in-out hover:bg-indigo-500/20 dark:hover:bg-indigo-500/20 hover:text-indigo-800 dark:hover:text-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 btn-animate">
             <Link href="/profile">Voir mon profil</Link>

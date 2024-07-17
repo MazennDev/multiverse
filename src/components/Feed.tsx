@@ -10,6 +10,7 @@ import { User as SupabaseUser } from '@supabase/auth-helpers-nextjs'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { v4 as uuidv4 } from 'uuid'
+import { toast } from '@/components/ui/use-toast'
 import { PhotoIcon, HeartIcon, ChatBubbleLeftIcon, ShareIcon } from '@heroicons/react/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid'
 
@@ -300,51 +301,71 @@ export default function Feed() {
     return data.publicUrl
   }
 
-  const createPost = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newPostContent.trim() && !selectedImage) return
-    if (!currentUser) return
+  const MAX_POST_LENGTH = 1000; // Adjust this value as needed
 
-    setCreatingPost(true)
-    try {
-      let imageUrl = null
-      if (selectedImage) {
-        imageUrl = await uploadImage(selectedImage)
-      }
-
-      const newPost: Partial<Post> = {
-        user_id: currentUser.id,
-        content: newPostContent.trim(),
-        image_url: imageUrl || undefined,
-        created_at: new Date().toISOString(),
-        likes: 0,
-        comment_count: 0,
-        user: {
-          username: currentUser.username || '',
-          avatar_url: currentUser.avatar_url || '',
-        },
-      }
-
-      const { data: postData, error: postError } = await supabase
-        .from('posts')
-        .insert(newPost)
-        .select()
-        .single()
-
-      if (postError) throw postError
-
-      setPosts(prevPosts => [postData as Post, ...prevPosts])
-      setNewPostContent('')
-      setSelectedImage(null)
-      if (imageInputRef.current) {
-        imageInputRef.current.value = ''
-      }
-    } catch (error) {
-      console.error('Error creating post:', error)
-    } finally {
-      setCreatingPost(false)
-    }
+const createPost = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!newPostContent.trim() && !selectedImage) return;
+  if (!currentUser) return;
+  if (newPostContent.length > MAX_POST_LENGTH) {
+    toast({
+      title: "Error",
+      description: `Your post is too long. Maximum length is ${MAX_POST_LENGTH} characters.`,
+      variant: "destructive",
+    });
+    return;
   }
+
+  setCreatingPost(true);
+  try {
+    let imageUrl = null;
+    if (selectedImage) {
+      imageUrl = await uploadImage(selectedImage);
+    }
+
+    const newPost: Partial<Post> = {
+      user_id: currentUser.id,
+      content: newPostContent.trim(),
+      image_url: imageUrl || undefined,
+      created_at: new Date().toISOString(),
+      likes: 0,
+      comment_count: 0,
+      user: {
+        username: currentUser.username || '',
+        avatar_url: currentUser.avatar_url || '',
+      },
+    };
+
+    const { data: postData, error: postError } = await supabase
+      .from('posts')
+      .insert(newPost)
+      .select()
+      .single();
+
+    if (postError) throw postError;
+
+    setPosts(prevPosts => [postData as Post, ...prevPosts]);
+    setNewPostContent('');
+    setSelectedImage(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+    toast({
+      title: "Success",
+      description: "Your post has been created successfully.",
+    });
+  } catch (error) {
+    console.error('Error creating post:', error);
+    toast({
+      title: "Error",
+      description: "Failed to create post. Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setCreatingPost(false);
+  }
+};
+
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewPostContent(e.target.value)
@@ -373,6 +394,7 @@ export default function Feed() {
                 className="w-full p-2 bg-transparent text-white resize-none overflow-hidden focus:outline-none"
                 rows={1}
                 style={{minHeight: '2.5rem'}}
+                maxLength={MAX_POST_LENGTH}
               />
               {selectedImage && (
                 <div className="mt-2">
@@ -384,6 +406,9 @@ export default function Feed() {
                 </div>
               )}
               <div className="flex justify-between items-center mt-2">
+                <span className="text-sm text-gray-400">
+                  {newPostContent.length}/{MAX_POST_LENGTH}
+                </span>
                 <input
                   type="file"
                   accept="image/*"
