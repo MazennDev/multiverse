@@ -5,7 +5,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { User } from '@supabase/auth-helpers-nextjs'
 import { Avatar } from './ui/avatar'
 import { Button } from './ui/button'
-import { Textarea } from './ui/textarea'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -70,7 +69,8 @@ export default function Feed() {
     }
   }
 
-  const createPost = async () => {
+  const createPost = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!newPostContent.trim() || !currentUser) return
 
     setCreatingPost(true)
@@ -118,43 +118,44 @@ export default function Feed() {
   return (
     <div className="max-w-2xl mx-auto">
       {currentUser && (
-        <div className="bg-gray-800/30 backdrop-blur-sm rounded-lg p-4 mb-6">
+        <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
           <div className="flex items-start space-x-4">
             <Avatar
               src={currentUser.user_metadata.avatar_url || '/default-avatar.png'}
               alt={currentUser.user_metadata.username}
-              className="w-12 h-12"
+              className="w-10 h-10"
             />
             <div className="flex-grow">
-              <Textarea
+              <textarea
                 ref={textareaRef}
                 value={newPostContent}
                 onChange={handleTextareaChange}
                 placeholder="Quoi de neuf ?"
-                className="w-full mb-2 bg-gray-700/50 text-white resize-none overflow-hidden"
+                className="w-full p-2 bg-transparent text-white resize-none overflow-hidden focus:outline-none"
                 rows={1}
+                style={{minHeight: '2.5rem'}}
               />
-              <div className="flex justify-end">
+              <div className="flex justify-end mt-2">
                 <Button
-                  onClick={createPost}
+                  type="submit"
                   disabled={creatingPost || !newPostContent.trim()}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full"
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm"
                 >
                   {creatingPost ? 'Publication...' : 'Publier'}
                 </Button>
               </div>
             </div>
           </div>
-        </div>
+        </form>
       )}
       {loading ? (
         <div className="flex justify-center items-center h-24">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {posts.map((post) => (
-            <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-lg p-4 shadow-md">
+            <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 shadow-md">
               <div className="flex items-start space-x-3">
                 <Avatar
                   src={post.user.avatar_url || '/default-avatar.png'}
