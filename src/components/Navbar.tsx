@@ -24,7 +24,6 @@ const Navbar = () => {
     }
     getUser()
   }, [supabase])
-  
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -33,19 +32,19 @@ const Navbar = () => {
   }
 
   return (
-    <nav className="bg-gray-800 text-white p-4">
+    <nav className="bg-gray-800 bg-opacity-50 backdrop-blur-md text-white p-4">
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="text-xl font-bold">Multiverse</Link>
-        <div>
-          <Link href="/" className="mr-4">Accueil</Link>
+        <div className="space-x-4">
+          <Link href="/">Accueil</Link>
           {username ? (
             <>
-              <Link href="/dashboard" className="mr-4">Tableau de bord</Link>
-              <span className="mr-4">{username}</span>
-              <button onClick={handleSignOut}>Déconnexion</button>
+              <Link href="/profile">Profil</Link>
+              <Link href="/friends">Amis</Link>
+              <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">Déconnexion</button>
             </>
           ) : (
-            <Link href="/signin">Connexion</Link>
+            <Link href="/signin" className="bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded">Connexion</Link>
           )}
         </div>
       </div>

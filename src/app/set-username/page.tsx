@@ -27,6 +27,7 @@ export default function SetUsername() {
         console.error('Error setting username:', error)
       } else {
         router.push('/')
+        router.refresh() // Force a refresh to update the Navbar
       }
     }
 
