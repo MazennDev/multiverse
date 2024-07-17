@@ -120,7 +120,7 @@ export default function ProfilePage() {
   
         const fileExt = file.name.split('.').pop()
         const fileName = `${user.id}${Math.random()}.${fileExt}`
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError, data: uploadData } = await supabase.storage
           .from('avatars')
           .upload(fileName, file)
   
@@ -128,11 +128,9 @@ export default function ProfilePage() {
   
         const { data } = supabase.storage
           .from('avatars')
-          .getPublicUrl(fileName)
+          .getPublicUrl(uploadData.path)
   
         const publicUrl = data.publicUrl
-  
-        setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null)
   
         const { error: updateError } = await supabase
           .from('profiles')
@@ -140,6 +138,8 @@ export default function ProfilePage() {
           .eq('id', user.id)
   
         if (updateError) throw updateError
+  
+        setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null)
   
         toast({
           title: "Succès",
@@ -156,7 +156,8 @@ export default function ProfilePage() {
         setLoading(false)
       }
     }
-  }  
+  }
+  
 
   if (loading) {
     return (
