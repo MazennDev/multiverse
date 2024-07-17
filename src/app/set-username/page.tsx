@@ -17,37 +17,39 @@ export default function SetUsername() {
     e.preventDefault()
     setLoading(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
 
-    if (user) {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ id: user.id, username })
+      if (user) {
+        const { error } = await supabase
+          .from('profiles')
+          .upsert({ id: user.id, username })
 
-      if (error) {
-        console.error('Error setting username:', error)
-        toast({
-          title: "Erreur",
-          description: "Impossible de définir le nom d'utilisateur. Veuillez réessayer.",
-          variant: "destructive",
-        })
-      } else {
+        if (error) throw error
+
         toast({
           title: "Succès",
           description: "Votre nom d'utilisateur a été défini avec succès.",
         })
         router.push('/')
-        router.refresh() // Force a refresh to update the Navbar
+        router.refresh()
       }
+    } catch (error) {
+      console.error('Error setting username:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de définir le nom d'utilisateur. Veuillez réessayer.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <div className="card w-full max-w-md">
-        <h1 className="text-3xl font-bold mb-6 text-center">Choisissez votre nom d&apos;utilisateur</h1>
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="bg-gray-800 bg-opacity-50 backdrop-blur-md p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h1 className="text-3xl font-bold mb-6 text-center text-white">Choisissez votre nom d&apos;utilisateur</h1>
         <form onSubmit={handleSubmit}>
           <Input
             type="text"
