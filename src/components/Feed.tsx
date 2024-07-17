@@ -75,31 +75,36 @@ export default function Feed() {
   }
   
 
+  const getAvatarUrl = (avatarPath: string | null) => {
+    if (!avatarPath) return '/default-avatar.png'
+    const supabase = createClientComponentClient()
+    const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath)
+    return data.publicUrl
+  }
+
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPostContent.trim() || !currentUser) return
-  
+
     setCreatingPost(true)
     try {
-      // First, insert the new post
       const { data: postData, error: postError } = await supabase
         .from('posts')
         .insert({ content: newPostContent, user_id: currentUser.id })
         .select('id, content, created_at, user_id')
         .single()
-  
+
       if (postError) throw postError
-  
+
       if (postData) {
-        // Then, fetch the user profile separately
         const { data: userData, error: userError } = await supabase
           .from('profiles')
           .select('username, avatar_url')
           .eq('id', currentUser.id)
           .single()
-  
+
         if (userError) throw userError
-  
+
         const newPost: Post = {
           ...postData,
           user: {
@@ -107,7 +112,7 @@ export default function Feed() {
             avatar_url: userData.avatar_url
           }
         }
-  
+
         setPosts(prevPosts => [newPost, ...prevPosts])
         setNewPostContent('')
         if (textareaRef.current) {
@@ -136,8 +141,8 @@ export default function Feed() {
         <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
           <div className="flex items-start space-x-4">
             <Avatar
-              src={currentUser.user_metadata.avatar_url || '/default-avatar.png'}
-              alt={currentUser.user_metadata.username}
+              src={getAvatarUrl(currentUser.user_metadata.avatar_url)}
+              alt={currentUser.user_metadata.username || ''}
               className="w-10 h-10"
             />
             <div className="flex-grow">
@@ -173,7 +178,7 @@ export default function Feed() {
             <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 shadow-md">
               <div className="flex items-start space-x-3">
                 <Avatar
-                  src={post.user.avatar_url || '/default-avatar.png'}
+                  src={getAvatarUrl(post.user.avatar_url)}
                   alt={post.user.username}
                   className="w-10 h-10"
                 />
