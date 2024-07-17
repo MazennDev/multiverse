@@ -18,10 +18,10 @@ interface Post {
   user_id: string
   content: string
   created_at: string
-  user: {
+  profiles: {
     username: string
     avatar_url: string | null
-  }
+  }[] | null
 }
 
 export default function Feed() {
@@ -87,7 +87,7 @@ export default function Feed() {
           content,
           created_at,
           user_id,
-          user:profiles(username, avatar_url)
+          profiles(username, avatar_url)
         `)
         .order('created_at', { ascending: false })
         .limit(20)
@@ -95,11 +95,7 @@ export default function Feed() {
       if (error) throw error
 
       if (data) {
-        const formattedPosts: Post[] = data.map(post => ({
-          ...post,
-          user: post.user[0]
-        }))
-        setPosts(formattedPosts)
+        setPosts(data as Post[])
       }
     } catch (error) {
       console.error('Erreur lors de la récupération des posts:', error)
@@ -122,18 +118,14 @@ export default function Feed() {
           content,
           created_at,
           user_id,
-          user:profiles(username, avatar_url)
+          profiles(username, avatar_url)
         `)
         .single()
 
       if (error) throw error
 
       if (data) {
-        const newPost: Post = {
-          ...data,
-          user: data.user[0]
-        }
-        setPosts(prevPosts => [newPost, ...prevPosts])
+        setPosts(prevPosts => [data as Post, ...prevPosts])
         setNewPostContent('')
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto'
@@ -206,13 +198,13 @@ export default function Feed() {
             <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 shadow-md">
               <div className="flex items-start space-x-3">
                 <Avatar
-                  src={getAvatarUrl(post.user.avatar_url)}
-                  alt={post.user.username}
+                  src={getAvatarUrl(post.profiles?.[0]?.avatar_url)}
+                  alt={post.profiles?.[0]?.username || 'User'}
                   className="w-10 h-10"
                 />
                 <div className="flex-grow">
                   <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-white">{post.user.username}</span>
+                    <span className="font-semibold text-white">{post.profiles?.[0]?.username || 'Unknown User'}</span>
                     <span className="text-sm text-gray-400">
                       · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
                     </span>
