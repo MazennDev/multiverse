@@ -304,7 +304,7 @@ export default function ProfilePage() {
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
               <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans text-center w-full">{profile.bio || 'Aucune bio'}</pre>
             </div>
-            <div className="flex justify-center items-start space-x-1 text-center">
+            <div className="flex justify-center items-start text-center">
                 <div className="w-24">
                     <p className="font-bold text-2xl">{followerCount}</p>
                     <p className="text-gray-400 text-sm">Abonnés</p>

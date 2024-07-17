@@ -67,26 +67,28 @@ export default function Feed() {
 
   const handleNewPost = async (payload: any) => {
     const newPost = payload.new as Post
-    const { data: userData, error: userError } = await supabase
-      .from('profiles')
-      .select('username, avatar_url')
-      .eq('id', newPost.user_id)
-      .single()
+    if (newPost.user_id !== currentUser?.id) {
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', newPost.user_id)
+        .single()
 
-    if (userError) {
-      console.error('Error fetching user data for new post:', userError)
-      return
-    }
-
-    const fullNewPost: Post = {
-      ...newPost,
-      user: {
-        username: userData.username,
-        avatar_url: getAvatarUrl(userData.avatar_url)
+      if (userError) {
+        console.error('Error fetching user data for new post:', userError)
+        return
       }
-    }
 
-    setPosts(currentPosts => [fullNewPost, ...currentPosts])
+      const fullNewPost: Post = {
+        ...newPost,
+        user: {
+          username: userData.username,
+          avatar_url: getAvatarUrl(userData.avatar_url)
+        }
+      }
+
+      setPosts(currentPosts => [fullNewPost, ...currentPosts])
+    }
   }
 
   const fetchCurrentUser = async () => {
@@ -199,6 +201,21 @@ export default function Feed() {
   
     setCreatingPost(true)
     try {
+      const newPost: Post = {
+        id: Date.now().toString(), // Temporary ID
+        user_id: currentUser.id,
+        content: newPostContent,
+        created_at: new Date().toISOString(),
+        user: {
+          username: currentUser.username || '',
+          avatar_url: currentUser.avatar_url || ''
+        }
+      }
+
+      // Optimistically update the UI
+      setPosts(prevPosts => [newPost, ...prevPosts])
+
+      // Actually create the post in the database
       const { error: postError } = await supabase
         .from('posts')
         .insert({ content: newPostContent, user_id: currentUser.id })
@@ -211,6 +228,8 @@ export default function Feed() {
       }
     } catch (error) {
       console.error('Erreur lors de la création du post:', error)
+      // If there's an error, remove the optimistically added post
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== Date.now().toString()))
     } finally {
       setCreatingPost(false)
     }
