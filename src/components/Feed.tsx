@@ -163,6 +163,7 @@ export default function Feed() {
         .select('id, content, image_url, created_at, user_id, likes, comment_count')
         .order('created_at', { ascending: false })
         .limit(20)
+
   
       if (postsError) throw postsError
   
@@ -329,12 +330,12 @@ const createPost = async (e: React.FormEvent) => {
       image_url: imageUrl || undefined,
       created_at: new Date().toISOString(),
       likes: 0,
-      comment_count: 0,
       user: {
         username: currentUser.username || '',
         avatar_url: currentUser.avatar_url || '',
       },
     };
+    
 
     const { data: postData, error: postError } = await supabase
       .from('posts')
@@ -476,7 +477,7 @@ const createPost = async (e: React.FormEvent) => {
                     </button>
                     <button className="flex items-center space-x-1 text-gray-400 hover:text-blue-500">
                       <ChatBubbleLeftIcon className="w-5 h-5" />
-                      <span>{post.comment_count}</span>
+                      <span>{post.comment_count || 0}</span>
                     </button>
                     <button className="flex items-center space-x-1 text-gray-400 hover:text-green-500">
                       <ShareIcon className="w-5 h-5" />
