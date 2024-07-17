@@ -6,6 +6,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { HeartIcon, ChatBubbleLeftIcon, ShareIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import { Post, Comment, User } from '../types';
+import Image from 'next/image';
 
 interface PostModalProps {
   postId: string;
@@ -115,7 +117,7 @@ export default function PostModal({ postId, onClose }: PostModalProps) {
                 </div>
                 <p className="text-gray-200 mt-1">{post.content}</p>
                 {post.image_url && (
-                  <img src={post.image_url} alt="Post image" className="mt-2 rounded-lg max-h-96 w-full object-cover" />
+                  <Image src={post.image_url} alt="Post image" width={500} height={300} className="mt-2 rounded-lg object-cover" />
                 )}
               </div>
             </div>
