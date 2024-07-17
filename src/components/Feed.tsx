@@ -69,12 +69,7 @@ export default function Feed() {
             avatar_url: getAvatarUrl(data.avatar_url)
           })
         } else {
-          // If no profile data, use default values
-          setCurrentUser({
-            ...user,
-            username: user.email?.split('@')[0] || 'User',
-            avatar_url: getAvatarUrl(undefined)
-          })
+          throw new Error('No profile data found')
         }
       } else {
         setCurrentUser(null)
@@ -91,9 +86,9 @@ export default function Feed() {
         })
       }
     }
-  }  
-
-  const fetchPosts = async () => {
+  }
+  
+  const fetchPosts = async (retries = 3) => {
     try {
       setLoading(true)
       let { data: postsData, error: postsError } = await supabase
@@ -106,35 +101,52 @@ export default function Feed() {
   
       if (postsData) {
         const postsWithUsers = await Promise.all(postsData.map(async (post) => {
-          const { data: userData, error: userError } = await supabase
-            .from('profiles')
-            .select('username, avatar_url')
-            .eq('id', post.user_id)
-            .single()
+          try {
+            const { data: userData, error: userError } = await supabase
+              .from('profiles')
+              .select('username, avatar_url')
+              .eq('id', post.user_id)
+              .single()
   
-          if (userError) throw userError
+            if (userError) throw userError
   
-          return {
-            ...post,
-            user: {
-              ...userData,
-              avatar_url: getAvatarUrl(userData.avatar_url)
+            return {
+              ...post,
+              user: {
+                ...userData,
+                avatar_url: getAvatarUrl(userData.avatar_url)
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching user data for post ${post.id}:`, error)
+            return {
+              ...post,
+              user: {
+                username: 'Unknown User',
+                avatar_url: getAvatarUrl(undefined)
+              }
             }
           }
         }))
-  
-        setPosts(postsWithUsers)
+
+       setPosts(postsWithUsers)
       }
     } catch (error) {
-      console.error('Erreur lors de la récupération des posts:', error)
+      console.error('Error fetching posts:', error)
+      if (retries > 0) {
+        console.log(`Retrying fetch posts (${retries} attempts left)`)
+        setTimeout(() => fetchPosts(retries - 1), 1000)
+      }
     } finally {
       setLoading(false)
     }
   }
   
-
   const getAvatarUrl = (avatarPath: string | null | undefined) => {
     if (!avatarPath) return '/default-avatar.png'
+    if (avatarPath.startsWith('data:image')) {
+      return avatarPath // Return the base64 string as is
+    }
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
       return avatarPath
     }
@@ -142,7 +154,6 @@ export default function Feed() {
     return data.publicUrl
   }  
   
-
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPostContent.trim() || !currentUser) return
@@ -200,11 +211,15 @@ export default function Feed() {
       {currentUser && (
         <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
           <div className="flex items-start space-x-4">
-          <Avatar
-          src={getAvatarUrl(currentUser.avatar_url)}
-          alt={currentUser.username || ''}
-          className="w-10 h-10"
-        />
+            <Avatar
+              src={getAvatarUrl(currentUser.avatar_url)}
+              alt={currentUser.username || ''}
+              className="w-10 h-10"
+              onError={(e) => {
+                console.error(`Failed to load avatar for ${currentUser.username}`)
+                e.currentTarget.src = '/default-avatar.png'
+              }}
+            />
             <div className="flex-grow">
               <textarea
                 ref={textareaRef}
@@ -241,6 +256,10 @@ export default function Feed() {
                   src={getAvatarUrl(post.user.avatar_url)}
                   alt={post.user.username}
                   className="w-10 h-10"
+                  onError={(e) => {
+                    console.error(`Failed to load avatar for ${post.user.username}`);
+                    e.currentTarget.src = '/default-avatar.png';
+                  }}
                 />
                 <div className="flex-grow">
                   <div className="flex items-center space-x-2">
