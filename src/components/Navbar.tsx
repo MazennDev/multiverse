@@ -23,7 +23,8 @@ const Navbar = () => {
       }
     }
     getUser()
-  }, [])
+  }, [supabase])
+  
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()

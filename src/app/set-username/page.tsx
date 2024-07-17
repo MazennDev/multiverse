@@ -35,7 +35,7 @@ export default function SetUsername() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-purple-900 to-blue-900 p-4">
-      <h1 className="text-4xl font-bold text-white mb-8">Choisissez votre nom d'utilisateur</h1>
+      <h1 className="text-4xl font-bold text-white mb-8">Choisissez votre nom d&apos;utilisateur</h1>
       <form onSubmit={handleSubmit} className="w-full max-w-md">
         <Input
           type="text"
