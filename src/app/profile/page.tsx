@@ -150,8 +150,11 @@ export default function ProfilePage() {
   
         const publicUrl = data.publicUrl
   
+        // Update local state
         setProfile({ ...profile, avatar_url: publicUrl })
+        setAvatarError(false) // Reset avatar error state
   
+        // Update database
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ avatar_url: publicUrl })
@@ -163,6 +166,11 @@ export default function ProfilePage() {
           title: "Succès",
           description: "Votre avatar a été mis à jour avec succès.",
         })
+  
+        // Force a re-render
+        setLoading(false)
+        setLoading(true)
+        setLoading(false)
       } catch (error) {
         console.error('Error uploading avatar:', error)
         toast({
@@ -207,6 +215,7 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <img
+                    key={profile.avatar_url}
                     src={profile.avatar_url || '/default-avatar.png'}
                     alt={profile.username}
                     className="w-24 h-24 rounded-full object-cover cursor-pointer"
@@ -273,6 +282,7 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <img
+                  key={profile.avatar_url}
                   src={profile.avatar_url || '/default-avatar.png'}
                   alt={profile.username}
                   className="w-24 h-24 rounded-full object-cover"
@@ -283,12 +293,12 @@ export default function ProfilePage() {
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
               <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans text-center w-full">{profile.bio || 'Aucune bio'}</pre>
             </div>
-            <div className="flex justify-center space-x-8 text-center">
+            <div className="flex justify-center items-center space-x-8 text-center">
               <div>
                 <p className="font-bold text-2xl">{followerCount}</p>
                 <p className="text-gray-400">Abonnés</p>
               </div>
-              <div>
+              <div className="px-8 border-x border-gray-600">
                 <p className="font-bold text-2xl">{followingCount}</p>
                 <p className="text-gray-400">Abonnements</p>
               </div>
