@@ -118,30 +118,30 @@ export default function ProfilePage() {
         setLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error('User not found')
-
+  
         const fileExt = file.name.split('.').pop()
         const fileName = `${user.id}${Math.random()}.${fileExt}`
         const { error: uploadError } = await supabase.storage
           .from('avatars')
           .upload(fileName, file)
-
+  
         if (uploadError) throw uploadError
-
-        const { data: { publicUrl }, error: urlError } = supabase.storage
+  
+        const { data } = supabase.storage
           .from('avatars')
           .getPublicUrl(fileName)
-
-        if (urlError) throw urlError
-
+  
+        const publicUrl = data.publicUrl
+  
         setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null)
-
+  
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ avatar_url: publicUrl })
           .eq('id', user.id)
-
+  
         if (updateError) throw updateError
-
+  
         toast({
           title: "Succès",
           description: "Votre avatar a été mis à jour avec succès.",
@@ -157,7 +157,7 @@ export default function ProfilePage() {
         setLoading(false)
       }
     }
-  }
+  }  
 
   if (loading) {
     return (
