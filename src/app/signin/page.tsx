@@ -5,9 +5,10 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { FaGoogle, FaDiscord } from 'react-icons/fa'
+import Spinner from '@/components/ui/spinner'
 
 export default function SignIn() {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -26,6 +27,8 @@ export default function SignIn() {
         } else {
           router.push('/set-username')
         }
+      } else {
+        setLoading(false)
       }
     }
     checkUser()
@@ -43,9 +46,16 @@ export default function SignIn() {
       if (error) throw error
     } catch (error) {
       console.error('Error:', error)
-    } finally {
       setLoading(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Spinner />
+      </div>
+    )
   }
 
   return (
@@ -54,7 +64,6 @@ export default function SignIn() {
       <div className="space-y-4">
         <Button
           onClick={() => handleSignIn('google')}
-          disabled={loading}
           className="w-full bg-transparent hover:bg-white hover:bg-opacity-10 transition duration-300"
         >
           <FaGoogle className="mr-2" />
@@ -62,7 +71,6 @@ export default function SignIn() {
         </Button>
         <Button
           onClick={() => handleSignIn('discord')}
-          disabled={loading}
           className="w-full bg-transparent hover:bg-white hover:bg-opacity-10 transition duration-300"
         >
           <FaDiscord className="mr-2" />

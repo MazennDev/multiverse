@@ -3,38 +3,42 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import Spinner from '@/components/ui/spinner'
 
 export default function Home() {
   const [username, setUsername] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', user.id)
-          .single()
-        setUsername(profile?.username || null)
-      } else {
-        setUsername(null)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', user.id)
+            .single()
+          setUsername(profile?.username || null)
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error)
+      } finally {
+        setLoading(false)
       }
     }
 
     getUser()
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        getUser()
-      }
-    })
-
-    return () => {
-      authListener.subscription.unsubscribe()
-    }
   }, [supabase])
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Spinner />
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen">

@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
@@ -7,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/use-toast'
 import Image from 'next/image'
+import Spinner from '@/components/ui/spinner'
 
 interface Profile {
   username: string
@@ -27,40 +27,47 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const getProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('username, avatar_url, bio')
-          .eq('id', user.id)
-          .single()
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('username, avatar_url, bio')
+            .eq('id', user.id)
+            .single()
 
-        if (error) {
-          console.error('Error fetching profile:', error)
-        } else {
+          if (error) throw error
+
           setProfile({
             ...data,
             bio: data.bio ? JSON.parse(data.bio) : Array(4).fill(''),
             avatar_url: data.avatar_url || user.user_metadata.avatar_url
           })
-        }
 
-        // Fetch counts
-        const [{ count: followers }, { count: following }, { count: posts }] = await Promise.all([
-          supabase.from('followers').select('*', { count: 'exact' }).eq('following_id', user.id),
-          supabase.from('followers').select('*', { count: 'exact' }).eq('follower_id', user.id),
-          supabase.from('posts').select('*', { count: 'exact' }).eq('user_id', user.id)
-        ])
-        setFollowerCount(followers || 0)
-        setFollowingCount(following || 0)
-        setPostCount(posts || 0)
+          // Fetch counts
+          const [{ count: followers }, { count: following }, { count: posts }] = await Promise.all([
+            supabase.from('followers').select('*', { count: 'exact' }).eq('following_id', user.id),
+            supabase.from('followers').select('*', { count: 'exact' }).eq('follower_id', user.id),
+            supabase.from('posts').select('*', { count: 'exact' }).eq('user_id', user.id)
+          ])
+          setFollowerCount(followers || 0)
+          setFollowingCount(following || 0)
+          setPostCount(posts || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error)
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger le profil. Veuillez réessayer.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     getProfile()
   }, [supabase])
-
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -122,7 +129,11 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return <div className="flex justify-center items-center h-screen">Chargement...</div>
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Spinner />
+      </div>
+    )
   }
 
   if (!profile) {
