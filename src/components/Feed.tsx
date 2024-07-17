@@ -51,29 +51,45 @@ export default function Feed() {
   }, [])
 
   const fetchCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('id', user.id)
-        .single()
-      if (!error && data) {
-        setCurrentUser({
-          ...user,
-          username: data.username || user.email?.split('@')[0] || 'User',
-          avatar_url: data.avatar_url || undefined
-        })
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', user.id)
+          .single()
+        
+        if (error) throw error
+
+        if (data) {
+          setCurrentUser({
+            ...user,
+            username: data.username || user.email?.split('@')[0] || 'User',
+            avatar_url: data.avatar_url || undefined
+          })
+        } else {
+          // If no profile data, use default values
+          setCurrentUser({
+            ...user,
+            username: user.email?.split('@')[0] || 'User',
+            avatar_url: undefined
+          })
+        }
       } else {
-        console.error('Error fetching user profile:', error)
+        setCurrentUser(null)
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error)
+      // In case of error, set user with default values
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
         setCurrentUser({
           ...user,
           username: user.email?.split('@')[0] || 'User',
           avatar_url: undefined
         })
       }
-    } else {
-      setCurrentUser(null)
     }
   }
 
