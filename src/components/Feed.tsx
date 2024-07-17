@@ -7,6 +7,7 @@ import { Button } from './ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { User as SupabaseUser } from '@supabase/auth-helpers-nextjs'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
 interface User extends SupabaseUser {
   username?: string
@@ -32,10 +33,12 @@ export default function Feed() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const supabase = createClientComponentClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
     fetchPosts()
     fetchCurrentUser()
+    setupRealtimeSubscription()
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -47,8 +50,44 @@ export default function Feed() {
 
     return () => {
       authListener.subscription.unsubscribe()
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current)
+      }
     }
   }, [])
+
+  const setupRealtimeSubscription = () => {
+    const channel = supabase
+      .channel('public:posts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, handleNewPost)
+      .subscribe()
+
+    realtimeChannelRef.current = channel
+  }
+
+  const handleNewPost = async (payload: any) => {
+    const newPost = payload.new as Post
+    const { data: userData, error: userError } = await supabase
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('id', newPost.user_id)
+      .single()
+
+    if (userError) {
+      console.error('Error fetching user data for new post:', userError)
+      return
+    }
+
+    const fullNewPost: Post = {
+      ...newPost,
+      user: {
+        username: userData.username,
+        avatar_url: getAvatarUrl(userData.avatar_url)
+      }
+    }
+
+    setPosts(currentPosts => [fullNewPost, ...currentPosts])
+  }
 
   const fetchCurrentUser = async () => {
     try {
@@ -160,36 +199,15 @@ export default function Feed() {
   
     setCreatingPost(true)
     try {
-      const { data: postData, error: postError } = await supabase
+      const { error: postError } = await supabase
         .from('posts')
         .insert({ content: newPostContent, user_id: currentUser.id })
-        .select('id, content, created_at, user_id')
-        .single()
   
       if (postError) throw postError
   
-      if (postData) {
-        const { data: userData, error: userError } = await supabase
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('id', currentUser.id)
-          .single()
-  
-        if (userError) throw userError
-  
-        const newPost: Post = {
-          ...postData,
-          user: {
-            username: userData.username,
-            avatar_url: getAvatarUrl(userData.avatar_url)
-          }
-        }
-  
-        setPosts(prevPosts => [newPost, ...prevPosts])
-        setNewPostContent('')
-        if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto'
-        }
+      setNewPostContent('')
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
       }
     } catch (error) {
       console.error('Erreur lors de la création du post:', error)

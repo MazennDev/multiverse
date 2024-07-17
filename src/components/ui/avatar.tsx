@@ -21,12 +21,10 @@ export const Avatar: React.FC<AvatarProps> = ({ src, alt, className, onLoad, onE
   }
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.log(`Successfully loaded image: ${imageSrc}`)
     if (onLoad) onLoad(e)
   }
 
   if (imageError || !imageSrc) {
-    console.log(`Displaying fallback for: ${alt}`)
     return (
       <div className={`flex items-center justify-center bg-gray-300 text-gray-600 rounded-full ${className}`}>
         {alt.charAt(0).toUpperCase()}

@@ -59,6 +59,7 @@ export default function Home() {
   return (
     <div className="min-h-screen py-8">
       <div className="container mx-auto px-4 max-w-4xl">
+      <h1 className="text-4xl font-bold mb-6 text-white text-center">Multivers</h1>
         <div className="flex justify-center space-x-4 mb-8">
           <Button asChild className="bg-purple-500/10 dark:bg-purple-500/10 text-purple-700 dark:text-purple-200 font-medium py-2 px-4 rounded transition-all duration-200 ease-in-out hover:bg-purple-500/20 dark:hover:bg-purple-500/20 hover:text-purple-800 dark:hover:text-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-500/50 btn-animate">
             <Link href="/profile">Voir mon profil</Link>
