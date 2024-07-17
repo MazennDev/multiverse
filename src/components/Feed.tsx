@@ -13,15 +13,17 @@ interface ExtendedUser extends User {
   avatar_url?: string
 }
 
+interface Profile {
+  username: string
+  avatar_url: string | null
+}
+
 interface Post {
   id: string
   user_id: string
   content: string
   created_at: string
-  profiles: {
-    username: string
-    avatar_url: string | null
-  }[] | null
+  profiles: Profile[]
 }
 
 export default function Feed() {
@@ -87,7 +89,7 @@ export default function Feed() {
           content,
           created_at,
           user_id,
-          profiles(username, avatar_url)
+          profiles (username, avatar_url)
         `)
         .order('created_at', { ascending: false })
         .limit(20)
@@ -118,7 +120,7 @@ export default function Feed() {
           content,
           created_at,
           user_id,
-          profiles(username, avatar_url)
+          profiles (username, avatar_url)
         `)
         .single()
 
@@ -198,13 +200,13 @@ export default function Feed() {
             <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 shadow-md">
               <div className="flex items-start space-x-3">
                 <Avatar
-                  src={getAvatarUrl(post.profiles?.[0]?.avatar_url)}
-                  alt={post.profiles?.[0]?.username || 'User'}
+                  src={getAvatarUrl(post.profiles[0]?.avatar_url)}
+                  alt={post.profiles[0]?.username || 'User'}
                   className="w-10 h-10"
                 />
                 <div className="flex-grow">
                   <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-white">{post.profiles?.[0]?.username || 'Unknown User'}</span>
+                    <span className="font-semibold text-white">{post.profiles[0]?.username || 'Unknown User'}</span>
                     <span className="text-sm text-gray-400">
                       · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
                     </span>
