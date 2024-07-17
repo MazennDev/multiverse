@@ -207,13 +207,13 @@ export default function ProfilePage() {
                     {profile.username.charAt(0).toUpperCase()}
                   </div>
                 ) : (
-                  <img
+                    <img
                     src={profile.avatar_url || '/default-avatar.png'}
                     alt={profile.username}
-                    className="w-24 h-24 rounded-full object-cover cursor-pointer"
-                    onClick={handleAvatarClick}
+                    className="w-24 h-24 rounded-full object-cover"
                     onError={handleImageError}
-                  />
+                    onLoad={() => console.log('Avatar loaded successfully:', profile.avatar_url)}
+                  />                  
                 )}
                 <input
                   type="file"
@@ -273,10 +273,11 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <img
-                  src={profile.avatar_url || '/default-avatar.png'}
-                  alt={profile.username}
-                  className="w-24 h-24 rounded-full object-cover"
-                  onError={handleImageError}
+                    src={profile.avatar_url || '/default-avatar.png'}
+                    alt={profile.username}
+                    className="w-24 h-24 rounded-full object-cover"
+                    onError={handleImageError}
+                    onLoad={() => console.log('Avatar loaded successfully:', profile.avatar_url)}
                 />
               )}
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
