@@ -1,15 +1,15 @@
 import './globals.css'
-import type { Metadata } from 'next'
 import { Exo_2 } from 'next/font/google'
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from '@/components/ui/toaster'
 import Navbar from '@/components/Navbar'
+import Footer from '@/components/Footer'
 import SpaceBackground from '@/components/SpaceBackground'
 
 const exo2 = Exo_2({ subsets: ['latin'] })
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Multiverse',
-  description: 'Une plateforme sociale pour les amis',
+  description: 'Le Multivers, en Site.',
 }
 
 export default function RootLayout({
@@ -19,10 +19,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body className={exo2.className}>
+      <body className={`${exo2.className} flex flex-col min-h-screen`}>
         <SpaceBackground />
         <Navbar />
-        {children}
+        <main className="flex-grow">
+          {children}
+        </main>
+        <Footer />
         <Toaster />
       </body>
     </html>

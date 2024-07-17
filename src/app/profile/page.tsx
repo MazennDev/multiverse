@@ -132,14 +132,14 @@ export default function ProfilePage() {
   
         const publicUrl = data.publicUrl
   
+        setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null)
+  
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ avatar_url: publicUrl })
           .eq('id', user.id)
   
         if (updateError) throw updateError
-  
-        setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null)
   
         toast({
           title: "Succès",
@@ -156,8 +156,7 @@ export default function ProfilePage() {
         setLoading(false)
       }
     }
-  }
-  
+  }  
 
   if (loading) {
     return (
@@ -173,12 +172,12 @@ export default function ProfilePage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <div className="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-lg shadow-lg p-6">
+      <div className="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-3xl shadow-lg p-6">
         <h1 className="text-3xl font-bold mb-6 text-center">Profil</h1>
         {editing ? (
           <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <div className="flex items-center space-x-4 mb-4">
-              <div className="relative">
+            <div className="flex flex-col items-center mb-4">
+              <div className="relative mb-4">
                 <Image
                   src={profile.avatar_url || '/default-avatar.png'}
                   alt={profile.username}
@@ -200,17 +199,18 @@ export default function ProfilePage() {
                   </svg>
                 </div>
               </div>
-              <div className="flex-grow">
-                <label htmlFor="username" className="block mb-2">Nom d'utilisateur</label>
+              <div className="w-full">
+                <label htmlFor="username" className="block mb-2 text-center">Nom d'utilisateur</label>
                 <Input
                   id="username"
                   value={profile.username}
                   onChange={(e) => setProfile({ ...profile, username: e.target.value })}
+                  className="rounded-full text-center"
                 />
               </div>
             </div>
             <div>
-              <label htmlFor="bio" className="block mb-2">Bio</label>
+              <label htmlFor="bio" className="block mb-2 text-center">Bio</label>
               <textarea
                 id="bio"
                 value={profile.bio}
@@ -221,22 +221,22 @@ export default function ProfilePage() {
                 }}
                 maxLength={184} // 4 lines * 45 characters + 4 newline characters
                 rows={4}
-                className="w-full p-2 bg-gray-700 text-white rounded-md resize-none"
+                className="w-full p-2 bg-gray-700 text-white rounded-2xl resize-none text-center"
                 placeholder="Écrivez votre bio ici (4 lignes max, 45 caractères par ligne)"
               />
             </div>
             <div className="flex space-x-4">
-              <Button type="submit" disabled={loading} className="flex-1">
+              <Button type="submit" disabled={loading} className="flex-1 rounded-full">
                 {loading ? 'Mise à jour...' : 'Mettre à jour le profil'}
               </Button>
-              <Button type="button" onClick={() => setEditing(false)} variant="outline" className="flex-1">
+              <Button type="button" onClick={() => setEditing(false)} variant="outline" className="flex-1 rounded-full">
                 Annuler
               </Button>
             </div>
           </form>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col items-center space-y-4">
               <Image
                 src={profile.avatar_url || '/default-avatar.png'}
                 alt={profile.username}
@@ -244,10 +244,8 @@ export default function ProfilePage() {
                 height={100}
                 className="rounded-full"
               />
-              <div>
-                <h2 className="text-2xl font-bold">{profile.username}</h2>
-                <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans">{profile.bio || 'Aucune bio'}</pre>
-              </div>
+              <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
+              <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans text-center w-full">{profile.bio || 'Aucune bio'}</pre>
             </div>
             <div className="flex justify-between text-center">
               <div>
@@ -263,7 +261,7 @@ export default function ProfilePage() {
                 <p className="text-gray-400">Publications</p>
               </div>
             </div>
-            <Button onClick={() => setEditing(true)} className="w-full">
+            <Button onClick={() => setEditing(true)} className="w-full rounded-full">
               Modifier le profil
             </Button>
           </div>
