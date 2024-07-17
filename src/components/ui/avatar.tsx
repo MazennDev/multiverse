@@ -5,8 +5,17 @@ interface AvatarProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   alt: string
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ src, alt, className, ...props }) => {
+export const Avatar: React.FC<AvatarProps> = ({ src, alt, className, onLoad, onError, ...props }) => {
   const [imageError, setImageError] = useState(false)
+
+  const handleError = () => {
+    setImageError(true)
+    if (onError) onError({} as React.SyntheticEvent<HTMLImageElement, Event>)
+  }
+
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    if (onLoad) onLoad(e)
+  }
 
   if (imageError || !src) {
     return (
@@ -21,7 +30,8 @@ export const Avatar: React.FC<AvatarProps> = ({ src, alt, className, ...props })
       src={src}
       alt={alt}
       className={`rounded-full object-cover ${className}`}
-      onError={() => setImageError(true)}
+      onError={handleError}
+      onLoad={handleLoad}
       {...props}
     />
   )
