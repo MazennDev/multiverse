@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    images: {
+  reactStrictMode: true,
+  images: {
       domains: ['lh3.googleusercontent.com', 'cdn.discordapp.com'],
+  },
+  async redirects() {
+      return [
+        {
+          source: '/post',
+          destination: '/',
+          permanent: true,
+        },
+      ]
     },
   }
   

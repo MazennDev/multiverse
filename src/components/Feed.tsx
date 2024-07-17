@@ -252,37 +252,65 @@ export default function Feed() {
   const handleComment = (postId: string) => {
     setSelectedPostId(postId)
   }
-  const handleShare = (postId: string) => {
-    // Implement share functionality
-    console.log(`Share post ${postId}`)
+  
+  const handleShare = async (postId: string) => {
+    const url = `${window.location.origin}/post/${postId}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast({
+        title: "Link copied!",
+        description: "The post link has been copied to your clipboard.",
+      })
+    } catch (err) {
+      console.error('Failed to copy: ', err)
+      toast({
+        title: "Failed to copy link",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    }
   }
   const handleLike = async (postId: string) => {
-    if (!currentUser) return
-    const isLiked = likedPosts.has(postId)
+    if (!currentUser) return;
+    const isLiked = likedPosts.has(postId);
     try {
       if (isLiked) {
         await supabase
           .from('likes')
           .delete()
           .eq('user_id', currentUser.id)
-          .eq('post_id', postId)
+          .eq('post_id', postId);
         setLikedPosts(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(postId)
-          return newSet
-        })
-        await supabase.rpc('decrement_likes', { post_id: postId })
+          const newSet = new Set(prev);
+          newSet.delete(postId);
+          return newSet;
+        });
+        setPosts(prevPosts =>
+          prevPosts.map(post =>
+            post.id === postId ? { ...post, likes: post.likes - 1 } : post
+          )
+        );
+        await supabase.rpc('decrement_likes', { post_id: postId });
       } else {
         await supabase
           .from('likes')
-          .insert({ user_id: currentUser.id, post_id: postId })
-        setLikedPosts(prev => new Set(prev).add(postId))
-        await supabase.rpc('increment_likes', { post_id: postId })
+          .insert({ user_id: currentUser.id, post_id: postId });
+        setLikedPosts(prev => new Set(prev).add(postId));
+        setPosts(prevPosts =>
+          prevPosts.map(post =>
+            post.id === postId ? { ...post, likes: post.likes + 1 } : post
+          )
+        );
+        await supabase.rpc('increment_likes', { post_id: postId });
       }
     } catch (error) {
-      console.error('Error handling like:', error)
+      console.error('Error handling like:', error);
+      // Revert the optimistic update if there's an error
+      setLikedPosts(prev => new Set(prev));
+      setPosts(prevPosts => [...prevPosts]);
     }
-  }
+  };
+  
   
   
 

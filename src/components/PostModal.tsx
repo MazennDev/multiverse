@@ -14,10 +14,12 @@ interface PostModalProps {
   onClose: () => void;
   currentUser: User | null;
   onCommentAdded: (postId: string) => void;
+  isStandalone?: boolean; // New prop to determine if it's on its own page
 }
 
-export default function PostModal({ postId, onClose, currentUser, onCommentAdded }: PostModalProps) {
-  const [post, setPost] = useState<Post | null>(null);
+const MAX_COMMENT_LENGTH = 1000;
+
+export default function PostModal({ postId, onClose, currentUser, onCommentAdded, isStandalone = false }: PostModalProps) {  const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const supabase = createClientComponentClient();
@@ -41,17 +43,36 @@ export default function PostModal({ postId, onClose, currentUser, onCommentAdded
   };
 
   const fetchComments = async () => {
-    const { data, error } = await supabase
-      .from('comments')
-      .select('*, user:profiles(*)')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: true });
-    if (error) {
+    try {
+      const { data: commentsData, error: commentsError } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+  
+      if (commentsError) throw commentsError;
+  
+      const commentsWithUsers = await Promise.all(commentsData.map(async (comment) => {
+        const { data: userData, error: userError } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', comment.user_id)
+          .single();
+  
+        if (userError) throw userError;
+  
+        return {
+          ...comment,
+          user: userData
+        };
+      }));
+  
+      setComments(commentsWithUsers);
+    } catch (error) {
       console.error('Error fetching comments:', error);
-    } else {
-      setComments(data);
     }
   };
+  
 
   const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,12 +86,20 @@ export default function PostModal({ postId, onClose, currentUser, onCommentAdded
           user_id: currentUser.id,
           content: newComment.trim(),
         })
-        .select('*, user:profiles(*)')
+        .select()
         .single();
 
       if (error) throw error;
 
-      setComments([...comments, data]);
+      const commentWithUser = {
+        ...data,
+        user: {
+          username: currentUser.username,
+          avatar_url: currentUser.avatar_url,
+        },
+      };
+
+      setComments([...comments, commentWithUser]);
       setNewComment('');
       onCommentAdded(postId);
     } catch (error) {
@@ -81,9 +110,8 @@ export default function PostModal({ postId, onClose, currentUser, onCommentAdded
   if (!post) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-gray-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-4">
+    <div className={`${isStandalone ? '' : 'fixed inset-0 bg-black bg-opacity-50'} flex items-center justify-center p-4 z-50`}>      
+      <div className={`bg-gray-800/30 backdrop-blur-sm rounded-xl ${isStandalone ? 'w-full max-w-2xl' : 'max-w-2xl w-full'} max-h-[90vh] overflow-y-auto`}>        <div className="p-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-white">Post</h2>
             <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -130,14 +158,18 @@ export default function PostModal({ postId, onClose, currentUser, onCommentAdded
             <form onSubmit={handleComment} className="mt-4">
               <textarea
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                onChange={(e) => setNewComment(e.target.value.slice(0, MAX_COMMENT_LENGTH))}
                 placeholder="Add a comment..."
-                className="w-full p-2 bg-gray-800 text-white rounded-lg"
+                className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none"
                 rows={3}
+                maxLength={MAX_COMMENT_LENGTH}
               />
-              <Button type="submit" className="mt-2">
-                Post Comment
-              </Button>
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-sm text-gray-400">{newComment.length}/{MAX_COMMENT_LENGTH}</span>
+                <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
+                  Post Comment
+                </Button>
+              </div>
             </form>
           )}
         </div>
