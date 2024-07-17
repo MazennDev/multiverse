@@ -136,43 +136,44 @@ export default function ProfilePage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error('User not found')
   
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${user.id}${Math.random()}.${fileExt}`
-        const { error: uploadError, data: uploadData } = await supabase.storage
-          .from('avatars')
-          .upload(fileName, file)
+        // Convert file to data URL
+        const reader = new FileReader()
+        reader.onload = async (event) => {
+          const dataUrl = event.target?.result as string
   
-        if (uploadError) throw uploadError
+          // Update local state with data URL
+          setProfile({ ...profile, avatar_url: dataUrl })
+          setAvatarError(false)
   
-        const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(uploadData.path)
-
-        const publicUrl = data.publicUrl
-        console.log('New avatar URL:', publicUrl);
-
+          // Upload to Supabase storage
+          const fileExt = file.name.split('.').pop()
+          const fileName = `${user.id}${Math.random()}.${fileExt}`
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, file)
   
-        // Update local state
-        setProfile({ ...profile, avatar_url: publicUrl })
-        setAvatarError(false) // Reset avatar error state
+          if (uploadError) throw uploadError
   
-        // Update database
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ avatar_url: publicUrl })
-          .eq('id', user.id)
+          const { data } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(fileName)
   
-        if (updateError) throw updateError
+          const publicUrl = data.publicUrl
   
-        toast({
-          title: "Succès",
-          description: "Votre avatar a été mis à jour avec succès.",
-        })
+          // Update database with public URL
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ avatar_url: publicUrl })
+            .eq('id', user.id)
   
-        // Force a re-render
-        setLoading(false)
-        setLoading(true)
-        setLoading(false)
+          if (updateError) throw updateError
+  
+          toast({
+            title: "Succès",
+            description: "Votre avatar a été mis à jour avec succès.",
+          })
+        }
+        reader.readAsDataURL(file)
       } catch (error) {
         console.error('Error uploading avatar:', error)
         toast({
@@ -184,7 +185,8 @@ export default function ProfilePage() {
         setLoading(false)
       }
     }
-  }  
+  }
+  
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     console.error('Failed to load avatar image:', e.currentTarget.src)
@@ -217,20 +219,19 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                     <img
-                    key={profile.avatar_url}
-                    src={`${profile.avatar_url || '/default-avatar.png'}?t=${Date.now()}`}
-                    alt={profile.username}
-                    className="w-24 h-24 rounded-full object-cover"
-                    onError={(e) => {
-                      console.error('Failed to load avatar image:', e.currentTarget.src);
-                      setAvatarError(true);
-                    }}
-                    onLoad={() => {
-                      console.log('Avatar loaded successfully:', profile.avatar_url);
-                      setAvatarError(false);
-                    }}
-                  />
-                  
+                        key={profile.avatar_url}
+                        src={profile.avatar_url || '/default-avatar.png'}
+                        alt={profile.username}
+                        className="w-24 h-24 rounded-full object-cover"
+                        onError={(e) => {
+                            console.error('Failed to load avatar image:', e.currentTarget.src);
+                            setAvatarError(true);
+                        }}
+                        onLoad={() => {
+                            console.log('Avatar loaded successfully:', profile.avatar_url);
+                            setAvatarError(false);
+                        }}
+                        />
                 )}
                 <input
                   type="file"
@@ -289,37 +290,37 @@ export default function ProfilePage() {
                   {profile.username.charAt(0).toUpperCase()}
                 </div>
               ) : (
-                <img
-                    key={profile.avatar_url}
-                    src={`${profile.avatar_url || '/default-avatar.png'}?t=${Date.now()}`}
-                    alt={profile.username}
-                    className="w-24 h-24 rounded-full object-cover"
-                    onError={(e) => {
-                        console.error('Failed to load avatar image:', e.currentTarget.src);
-                        setAvatarError(true);
-                    }}
-                    onLoad={() => {
-                        console.log('Avatar loaded successfully:', profile.avatar_url);
-                        setAvatarError(false);
-                    }}
-                />
+            <img
+                key={profile.avatar_url}
+                src={profile.avatar_url || '/default-avatar.png'}
+                alt={profile.username}
+                className="w-24 h-24 rounded-full object-cover"
+                onError={(e) => {
+                    console.error('Failed to load avatar image:', e.currentTarget.src);
+                    setAvatarError(true);
+                }}
+                onLoad={() => {
+                    console.log('Avatar loaded successfully:', profile.avatar_url);
+                    setAvatarError(false);
+                }}
+            />
               )}
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
               <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans text-center w-full">{profile.bio || 'Aucune bio'}</pre>
             </div>
             <div className="flex justify-center items-center space-x-8 text-center">
-              <div>
-                <p className="font-bold text-2xl">{followerCount}</p>
-                <p className="text-gray-400">Abonnés</p>
-              </div>
-              <div className="px-8 border-x border-gray-600">
-                <p className="font-bold text-2xl">{followingCount}</p>
-                <p className="text-gray-400">Abonnements</p>
-              </div>
-              <div>
-                <p className="font-bold text-2xl">{postCount}</p>
-                <p className="text-gray-400">Publications</p>
-              </div>
+                <div className="w-20">
+                    <p className="font-bold text-2xl">{followerCount}</p>
+                    <p className="text-gray-400">Abonnés</p>
+                </div>
+                <div className="w-24 border-x border-gray-600 px-4">
+                    <p className="font-bold text-2xl">{followingCount}</p>
+                    <p className="text-gray-400">Abonnements</p>
+                </div>
+                <div className="w-20">
+                    <p className="font-bold text-2xl">{postCount}</p>
+                    <p className="text-gray-400">Publications</p>
+                </div>
             </div>
             <Button onClick={() => setEditing(true)} className="w-full rounded-full">
               Modifier le profil
