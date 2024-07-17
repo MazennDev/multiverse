@@ -61,19 +61,19 @@ export default function Feed() {
           .single()
         
         if (error) throw error
-
+  
         if (data) {
           setCurrentUser({
             ...user,
             username: data.username || user.email?.split('@')[0] || 'User',
-            avatar_url: data.avatar_url || undefined
+            avatar_url: getAvatarUrl(data.avatar_url)
           })
         } else {
           // If no profile data, use default values
           setCurrentUser({
             ...user,
             username: user.email?.split('@')[0] || 'User',
-            avatar_url: undefined
+            avatar_url: getAvatarUrl(undefined)
           })
         }
       } else {
@@ -87,11 +87,11 @@ export default function Feed() {
         setCurrentUser({
           ...user,
           username: user.email?.split('@')[0] || 'User',
-          avatar_url: undefined
+          avatar_url: getAvatarUrl(undefined)
         })
       }
     }
-  }
+  }  
 
   const fetchPosts = async () => {
     try {
@@ -101,9 +101,9 @@ export default function Feed() {
         .select('id, content, created_at, user_id')
         .order('created_at', { ascending: false })
         .limit(20)
-
+  
       if (postsError) throw postsError
-
+  
       if (postsData) {
         const postsWithUsers = await Promise.all(postsData.map(async (post) => {
           const { data: userData, error: userError } = await supabase
@@ -111,15 +111,18 @@ export default function Feed() {
             .select('username, avatar_url')
             .eq('id', post.user_id)
             .single()
-
+  
           if (userError) throw userError
-
+  
           return {
             ...post,
-            user: userData
+            user: {
+              ...userData,
+              avatar_url: getAvatarUrl(userData.avatar_url)
+            }
           }
         }))
-
+  
         setPosts(postsWithUsers)
       }
     } catch (error) {
@@ -128,6 +131,7 @@ export default function Feed() {
       setLoading(false)
     }
   }
+  
 
   const getAvatarUrl = (avatarPath: string | null | undefined) => {
     if (!avatarPath) return '/default-avatar.png'
@@ -136,12 +140,13 @@ export default function Feed() {
     }
     const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath)
     return data.publicUrl
-  }
+  }  
+  
 
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPostContent.trim() || !currentUser) return
-
+  
     setCreatingPost(true)
     try {
       const { data: postData, error: postError } = await supabase
@@ -149,26 +154,26 @@ export default function Feed() {
         .insert({ content: newPostContent, user_id: currentUser.id })
         .select('id, content, created_at, user_id')
         .single()
-
+  
       if (postError) throw postError
-
+  
       if (postData) {
         const { data: userData, error: userError } = await supabase
           .from('profiles')
           .select('username, avatar_url')
           .eq('id', currentUser.id)
           .single()
-
+  
         if (userError) throw userError
-
+  
         const newPost: Post = {
           ...postData,
           user: {
             username: userData.username,
-            avatar_url: userData.avatar_url
+            avatar_url: getAvatarUrl(userData.avatar_url)
           }
         }
-
+  
         setPosts(prevPosts => [newPost, ...prevPosts])
         setNewPostContent('')
         if (textareaRef.current) {
@@ -180,7 +185,7 @@ export default function Feed() {
     } finally {
       setCreatingPost(false)
     }
-  }
+  }  
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewPostContent(e.target.value)
@@ -195,11 +200,11 @@ export default function Feed() {
       {currentUser && (
         <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
           <div className="flex items-start space-x-4">
-            <Avatar
-              src={getAvatarUrl(currentUser.avatar_url)}
-              alt={currentUser.username || ''}
-              className="w-10 h-10"
-            />
+          <Avatar
+          src={getAvatarUrl(currentUser.avatar_url)}
+          alt={currentUser.username || ''}
+          className="w-10 h-10"
+        />
             <div className="flex-grow">
               <textarea
                 ref={textareaRef}
