@@ -39,7 +39,7 @@ const Navbar = () => {
           <Link href="/">Accueil</Link>
           {username ? (
             <>
-              <Link href="/profile">Profil</Link>
+              <Link href="/profile">{username}</Link>
               <Link href="/friends">Amis</Link>
               <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">Déconnexion</button>
             </>
