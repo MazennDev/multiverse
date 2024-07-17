@@ -8,6 +8,10 @@ import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { User as SupabaseUser } from '@supabase/auth-helpers-nextjs'
 import { RealtimeChannel } from '@supabase/supabase-js'
+import Link from 'next/link'
+import { v4 as uuidv4 } from 'uuid'
+import { PhotoIcon, HeartIcon, ChatBubbleLeftIcon, ShareIcon } from '@heroicons/react/24/outline'
+import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid'
 
 interface User extends SupabaseUser {
   username?: string
@@ -15,14 +19,30 @@ interface User extends SupabaseUser {
 }
 
 interface Post {
-  id: string
-  user_id: string
-  content: string
-  created_at: string
+  id: string;
+  user_id: string;
+  content: string;
+  image_url?: string;
+  created_at: string;
+  likes: number;
+  comment_count: number;
   user: {
-    username: string
-    avatar_url: string
-  }
+    username: string;
+    avatar_url: string;
+  };
+}
+
+interface Comment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  parent_comment_id?: string;
+  user: {
+    username: string;
+    avatar_url: string;
+  };
 }
 
 export default function Feed() {
@@ -31,20 +51,26 @@ export default function Feed() {
   const [newPostContent, setNewPostContent] = useState('')
   const [creatingPost, setCreatingPost] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const supabase = createClientComponentClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
     fetchPosts()
     fetchCurrentUser()
     setupRealtimeSubscription()
+    fetchLikedPosts()
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         fetchCurrentUser()
+        fetchLikedPosts()
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null)
+        setLikedPosts(new Set())
       }
     })
 
@@ -117,7 +143,6 @@ export default function Feed() {
       }
     } catch (error) {
       console.error('Error fetching user profile:', error)
-      // In case of error, set user with default values
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setCurrentUser({
@@ -134,7 +159,7 @@ export default function Feed() {
       setLoading(true)
       let { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('id, content, created_at, user_id')
+        .select('id, content, image_url, created_at, user_id, likes, comment_count')
         .order('created_at', { ascending: false })
         .limit(20)
   
@@ -186,54 +211,140 @@ export default function Feed() {
   const getAvatarUrl = (avatarPath: string | null | undefined) => {
     if (!avatarPath) return '/default-avatar.png'
     if (avatarPath.startsWith('data:image')) {
-      return avatarPath // Return the base64 string as is
+      return avatarPath
     }
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
       return avatarPath
     }
     const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath)
-    return data.publicUrl
-  }  
+    return data?.publicUrl ?? '/default-avatar.png'
+  }
   
+  
+
+  const fetchLikedPosts = async () => {
+    if (!currentUser) return
+    const { data, error } = await supabase
+      .from('likes')
+      .select('post_id')
+      .eq('user_id', currentUser.id)
+    if (error) {
+      console.error('Error fetching liked posts:', error)
+    } else {
+      setLikedPosts(new Set(data.map(like => like.post_id)))
+    }
+  }
+
+  const handleLike = async (postId: string) => {
+    if (!currentUser) return
+    const isLiked = likedPosts.has(postId)
+    try {
+      if (isLiked) {
+        await supabase
+          .from('likes')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('post_id', postId)
+        setLikedPosts(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(postId)
+          return newSet
+        })
+      } else {
+        await supabase
+          .from('likes')
+          .insert({ user_id: currentUser.id, post_id: postId })
+        setLikedPosts(prev => new Set(prev).add(postId))
+      }
+      const { data } = await supabase
+        .from('posts')
+        .select('likes')
+        .eq('id', postId)
+        .single()
+      const newLikesCount = isLiked ? (data?.likes ?? 1) - 1 : (data?.likes ?? 0) + 1
+      await supabase
+        .from('posts')
+        .update({ likes: newLikesCount })
+        .eq('id', postId)
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId ? { ...post, likes: newLikesCount } : post
+        )
+      )
+    } catch (error) {
+      console.error('Error handling like:', error)
+    }
+  }
+  
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedImage(e.target.files[0])
+    }
+  }
+
+  const uploadImage = async (file: File) => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${uuidv4()}.${fileExt}`
+    const filePath = `${currentUser!.id}/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('post-images')
+      .upload(filePath, file)
+
+    if (uploadError) {
+      throw uploadError
+    }
+
+    const { data } = supabase.storage.from('post-images').getPublicUrl(filePath)
+    return data.publicUrl
+  }
+
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newPostContent.trim() || !currentUser) return
-  
+    if (!newPostContent.trim() && !selectedImage) return
+    if (!currentUser) return
+
     setCreatingPost(true)
     try {
-      const newPost: Post = {
-        id: Date.now().toString(), // Temporary ID
+      let imageUrl = null
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage)
+      }
+
+      const newPost: Partial<Post> = {
         user_id: currentUser.id,
-        content: newPostContent,
+        content: newPostContent.trim(),
+        image_url: imageUrl || undefined,
         created_at: new Date().toISOString(),
+        likes: 0,
+        comment_count: 0,
         user: {
           username: currentUser.username || '',
-          avatar_url: currentUser.avatar_url || ''
-        }
+          avatar_url: currentUser.avatar_url || '',
+        },
       }
 
-      // Optimistically update the UI
-      setPosts(prevPosts => [newPost, ...prevPosts])
-
-      // Actually create the post in the database
-      const { error: postError } = await supabase
+      const { data: postData, error: postError } = await supabase
         .from('posts')
-        .insert({ content: newPostContent, user_id: currentUser.id })
-  
+        .insert(newPost)
+        .select()
+        .single()
+
       if (postError) throw postError
-  
+
+      setPosts(prevPosts => [postData as Post, ...prevPosts])
       setNewPostContent('')
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
+      setSelectedImage(null)
+      if (imageInputRef.current) {
+        imageInputRef.current.value = ''
       }
     } catch (error) {
-      console.error('Erreur lors de la création du post:', error)
-      // If there's an error, remove the optimistically added post
-      setPosts(prevPosts => prevPosts.filter(post => post.id !== Date.now().toString()))
+      console.error('Error creating post:', error)
     } finally {
       setCreatingPost(false)
     }
-  }  
+  }
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewPostContent(e.target.value)
@@ -252,10 +363,6 @@ export default function Feed() {
               src={getAvatarUrl(currentUser.avatar_url)}
               alt={currentUser.username || ''}
               className="w-10 h-10"
-              onError={(e) => {
-                console.error(`Failed to load avatar for ${currentUser.username}`)
-                e.currentTarget.src = '/default-avatar.png'
-              }}
             />
             <div className="flex-grow">
               <textarea
@@ -267,10 +374,33 @@ export default function Feed() {
                 rows={1}
                 style={{minHeight: '2.5rem'}}
               />
-              <div className="flex justify-end mt-2">
+              {selectedImage && (
+                <div className="mt-2">
+                  <img
+                    src={URL.createObjectURL(selectedImage)}
+                    alt="Selected image"
+                    className="max-h-40 rounded-lg object-cover"
+                  />
+                </div>
+              )}
+              <div className="flex justify-between items-center mt-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  ref={imageInputRef}
+                />
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <PhotoIcon className="w-6 h-6" />
+                </button>
                 <Button
                   type="submit"
-                  disabled={creatingPost || !newPostContent.trim()}
+                  disabled={creatingPost || (!newPostContent.trim() && !selectedImage)}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm"
                 >
                   {creatingPost ? 'Publication...' : 'Publier'}
@@ -293,19 +423,40 @@ export default function Feed() {
                   src={getAvatarUrl(post.user.avatar_url)}
                   alt={post.user.username}
                   className="w-10 h-10"
-                  onError={(e) => {
-                    console.error(`Failed to load avatar for ${post.user.username}`);
-                    e.currentTarget.src = '/default-avatar.png';
-                  }}
                 />
                 <div className="flex-grow">
                   <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-white">{post.user.username}</span>
+                  <Link href={`/profile/${post.user.username}`}>
+                      <span className="font-semibold text-white hover:underline">{post.user.username}</span>
+                    </Link>
                     <span className="text-sm text-gray-400">
                       · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
                     </span>
                   </div>
                   <p className="text-gray-200 mt-1">{post.content}</p>
+                  {post.image_url && (
+                    <img src={post.image_url} alt="Post image" className="mt-2 rounded-lg max-h-96 w-full object-cover" />
+                  )}
+                  <div className="flex items-center space-x-4 mt-3">
+                    <button
+                      onClick={() => handleLike(post.id)}
+                      className="flex items-center space-x-1 text-gray-400 hover:text-red-500"
+                    >
+                      {likedPosts.has(post.id) ? (
+                        <HeartSolidIcon className="w-5 h-5 text-red-500" />
+                      ) : (
+                        <HeartIcon className="w-5 h-5" />
+                      )}
+                      <span>{post.likes}</span>
+                    </button>
+                    <button className="flex items-center space-x-1 text-gray-400 hover:text-blue-500">
+                      <ChatBubbleLeftIcon className="w-5 h-5" />
+                      <span>{post.comment_count}</span>
+                    </button>
+                    <button className="flex items-center space-x-1 text-gray-400 hover:text-green-500">
+                      <ShareIcon className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
