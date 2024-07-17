@@ -67,7 +67,7 @@ export default function Home() {
             <Link href="/friends">Mes amis</Link>
           </Button>
         </div>
-        <h1 className="text-3xl font-bold mb-6 text-white text-center">Votre Fil d&apos;Actualité</h1>
+        <h1 className="text-3xl font-bold mb-6 text-white text-center">Feed</h1>
         <Feed />
       </div>
     </div>

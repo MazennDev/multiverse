@@ -2,11 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { User } from '@supabase/auth-helpers-nextjs'
 import { Avatar } from './ui/avatar'
 import { Button } from './ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { User as SupabaseUser } from '@supabase/auth-helpers-nextjs'
+
+interface User extends SupabaseUser {
+  username?: string
+  avatar_url?: string
+}
 
 interface Post {
   id: string
@@ -35,20 +40,26 @@ export default function Feed() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [currentUserProfile, setCurrentUserProfile] = useState<{ username: string, avatar_url: string } | null>(null)
 
-const fetchCurrentUser = async () => {
-  const { data: { user } } = await supabase.auth.getUser()
-  setCurrentUser(user)
-  if (user) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username, avatar_url')
-      .eq('id', user.id)
-      .single()
-    if (!error && data) {
-      setCurrentUserProfile(data)
+  const fetchCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', user.id)
+        .single()
+      if (!error && data) {
+        setCurrentUser({
+          ...user,
+          username: data.username,
+          avatar_url: data.avatar_url
+        })
+      } else {
+        console.error('Error fetching user profile:', error)
+      }
     }
   }
-}
+  
 
 
   const fetchPosts = async () => {
@@ -88,7 +99,7 @@ const fetchCurrentUser = async () => {
   }
   
 
-  const getAvatarUrl = (avatarPath: string | null) => {
+  const getAvatarUrl = (avatarPath: string | null | undefined) => {
     if (!avatarPath) return '/default-avatar.png'
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
       return avatarPath
@@ -97,6 +108,7 @@ const fetchCurrentUser = async () => {
     const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath)
     return data.publicUrl
   }
+  
   
 
   const createPost = async (e: React.FormEvent) => {
@@ -156,14 +168,14 @@ const fetchCurrentUser = async () => {
     <div className="max-w-2xl mx-auto">
       {currentUser && (
         <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
-          <div className="flex items-start space-x-4">
+            <div className="flex items-start space-x-4">
             <Avatar
-                src={currentUserProfile ? getAvatarUrl(currentUserProfile.avatar_url) : '/default-avatar.png'}
-                alt={currentUserProfile?.username || ''}
-                className="w-10 h-10"
+              src={getAvatarUrl(currentUser?.avatar_url)}
+              alt={currentUser?.username || ''}
+              className="w-10 h-10"
             />
             <div className="flex-grow">
-              <textarea
+                <textarea
                 ref={textareaRef}
                 value={newPostContent}
                 onChange={handleTextareaChange}
@@ -171,21 +183,21 @@ const fetchCurrentUser = async () => {
                 className="w-full p-2 bg-transparent text-white resize-none overflow-hidden focus:outline-none"
                 rows={1}
                 style={{minHeight: '2.5rem'}}
-              />
-              <div className="flex justify-end mt-2">
+                />
+                <div className="flex justify-end mt-2">
                 <Button
-                  type="submit"
-                  disabled={creatingPost || !newPostContent.trim()}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm"
+                    type="submit"
+                    disabled={creatingPost || !newPostContent.trim()}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm"
                 >
-                  {creatingPost ? 'Publication...' : 'Publier'}
+                    {creatingPost ? 'Publication...' : 'Publier'}
                 </Button>
-              </div>
+                </div>
             </div>
-          </div>
+            </div>
         </form>
-      )}
-      {loading ? (
+    )}
+    {loading ? (
         <div className="flex justify-center items-center h-24">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
         </div>
