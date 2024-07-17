@@ -35,9 +35,11 @@ const SpaceBackground = () => {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+      // Create a gradient with dark purple, dark blue, and dark red
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-      gradient.addColorStop(0, `hsl(${(gradientOffset) % 360}, 70%, 20%)`)
-      gradient.addColorStop(1, `hsl(${(gradientOffset + 60) % 360}, 70%, 20%)`)
+      gradient.addColorStop(0, `rgb(${30 + Math.sin(gradientOffset) * 10}, 0, ${50 + Math.sin(gradientOffset) * 20})`) // Dark purple
+      gradient.addColorStop(0.5, `rgb(0, 0, ${40 + Math.sin(gradientOffset + Math.PI/2) * 20})`) // Dark blue
+      gradient.addColorStop(1, `rgb(${40 + Math.sin(gradientOffset + Math.PI) * 20}, 0, 0)`) // Dark red
       ctx.fillStyle = gradient
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
@@ -58,7 +60,7 @@ const SpaceBackground = () => {
         if (star.y < 0 || star.y > canvas.height) star.vy = -star.vy
       })
 
-      gradientOffset += 0.1
+      gradientOffset += 0.01
       requestAnimationFrame(animate)
     }
 
