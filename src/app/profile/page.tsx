@@ -41,12 +41,10 @@ export default function ProfilePage() {
           if (error) throw error
 
           setProfile({
-            ...data,
+            username: data.username,
             bio: data.bio || '',
             avatar_url: data.avatar_url || user.user_metadata.avatar_url
-          });
-          console.log('Avatar URL:', data.avatar_url || user.user_metadata.avatar_url);
-          
+          })
 
           // Fetch counts
           const [{ count: followers }, { count: following }, { count: posts }] = await Promise.all([
@@ -75,12 +73,14 @@ export default function ProfilePage() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!profile) return
+
     setLoading(true)
     setUsernameError('')
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user && profile) {
+      if (user) {
         // Check if username is already taken
         const { data: existingUser, error: checkError } = await supabase
           .from('profiles')
@@ -130,7 +130,7 @@ export default function ProfilePage() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
+    if (file && profile) {
       try {
         setLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
@@ -150,7 +150,7 @@ export default function ProfilePage() {
   
         const publicUrl = data.publicUrl
   
-        setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null)
+        setProfile({ ...profile, avatar_url: publicUrl })
   
         const { error: updateError } = await supabase
           .from('profiles')
@@ -177,10 +177,9 @@ export default function ProfilePage() {
   }  
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.error('Failed to load avatar image:', e.currentTarget.src);
-    setAvatarError(true);
-  };
-  
+    console.error('Failed to load avatar image:', e.currentTarget.src)
+    setAvatarError(true)
+  }
 
   if (loading) {
     return (
@@ -203,17 +202,18 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center mb-4">
               <div className="relative mb-4">
                 {avatarError ? (
-                  <div className="w-24 h-24 rounded-full bg-gray-600 flex items-center justify-center text-white">
+                  <div className="w-24 h-24 rounded-full bg-gray-600 flex items-center justify-center text-white text-4xl">
                     {profile.username.charAt(0).toUpperCase()}
                   </div>
                 ) : (
-                    <img
+                  <img
                     src={profile.avatar_url || '/default-avatar.png'}
                     alt={profile.username}
-                    className="w-24 h-24 rounded-full object-cover"
+                    className="w-24 h-24 rounded-full object-cover cursor-pointer"
+                    onClick={handleAvatarClick}
                     onError={handleImageError}
                     onLoad={() => console.log('Avatar loaded successfully:', profile.avatar_url)}
-                  />                  
+                  />
                 )}
                 <input
                   type="file"
@@ -273,11 +273,11 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <img
-                    src={profile.avatar_url || '/default-avatar.png'}
-                    alt={profile.username}
-                    className="w-24 h-24 rounded-full object-cover"
-                    onError={handleImageError}
-                    onLoad={() => console.log('Avatar loaded successfully:', profile.avatar_url)}
+                  src={profile.avatar_url || '/default-avatar.png'}
+                  alt={profile.username}
+                  className="w-24 h-24 rounded-full object-cover"
+                  onError={handleImageError}
+                  onLoad={() => console.log('Avatar loaded successfully:', profile.avatar_url)}
                 />
               )}
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
