@@ -22,6 +22,7 @@ export default function ProfilePage() {
   const [followingCount, setFollowingCount] = useState(0)
   const [postCount, setPostCount] = useState(0)
   const [usernameError, setUsernameError] = useState('')
+  const [avatarError, setAvatarError] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -173,6 +174,11 @@ export default function ProfilePage() {
     }
   }  
 
+  const handleImageError = () => {
+    setAvatarError(true)
+    console.error('Failed to load avatar image')
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -193,11 +199,19 @@ export default function ProfilePage() {
           <form onSubmit={handleUpdateProfile} className="space-y-4">
             <div className="flex flex-col items-center mb-4">
               <div className="relative mb-4">
-                <div 
-                  className="w-24 h-24 rounded-full bg-cover bg-center cursor-pointer"
-                  style={{backgroundImage: `url(${profile.avatar_url || '/default-avatar.png'})`}}
-                  onClick={handleAvatarClick}
-                />
+                {avatarError ? (
+                  <div className="w-24 h-24 rounded-full bg-gray-600 flex items-center justify-center text-white">
+                    {profile.username.charAt(0).toUpperCase()}
+                  </div>
+                ) : (
+                  <img
+                    src={profile.avatar_url || '/default-avatar.png'}
+                    alt={profile.username}
+                    className="w-24 h-24 rounded-full object-cover cursor-pointer"
+                    onClick={handleAvatarClick}
+                    onError={handleImageError}
+                  />
+                )}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -250,10 +264,18 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-4">
             <div className="flex flex-col items-center space-y-4">
-              <div 
-                className="w-24 h-24 rounded-full bg-cover bg-center"
-                style={{backgroundImage: `url(${profile.avatar_url || '/default-avatar.png'})`}}
-              />
+              {avatarError ? (
+                <div className="w-24 h-24 rounded-full bg-gray-600 flex items-center justify-center text-white text-4xl">
+                  {profile.username.charAt(0).toUpperCase()}
+                </div>
+              ) : (
+                <img
+                  src={profile.avatar_url || '/default-avatar.png'}
+                  alt={profile.username}
+                  className="w-24 h-24 rounded-full object-cover"
+                  onError={handleImageError}
+                />
+              )}
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
               <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans text-center w-full">{profile.bio || 'Aucune bio'}</pre>
             </div>
