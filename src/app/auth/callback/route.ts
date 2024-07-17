@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const supabase = createRouteHandlerClient({ cookies })
     await supabase.auth.exchangeCodeForSession(code)
 
-    // Fetch the user's profile
+    // Check if the user has a username
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: profile } = await supabase
@@ -19,12 +19,13 @@ export async function GET(request: Request) {
         .eq('id', user.id)
         .single()
 
-      // If the profile doesn't exist or doesn't have a username, redirect to a page to set the username
+      // If the profile doesn't exist or doesn't have a username, redirect to set username page
       if (!profile || !profile.username) {
         return NextResponse.redirect(new URL('/set-username', requestUrl.origin))
       }
     }
   }
 
+  // Redirect to the home page
   return NextResponse.redirect(new URL('/', requestUrl.origin))
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,26 @@ export default function SignIn() {
   const router = useRouter()
   const supabase = createClientComponentClient()
 
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single()
+        
+        if (profile?.username) {
+          router.push('/')
+        } else {
+          router.push('/set-username')
+        }
+      }
+    }
+    checkUser()
+  }, [supabase, router])
+
   const handleSignIn = async (provider: 'google' | 'discord') => {
     try {
       setLoading(true)
@@ -18,10 +38,6 @@ export default function SignIn() {
         provider: provider,
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
         },
       })
       if (error) throw error
@@ -33,13 +49,13 @@ export default function SignIn() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-purple-900 to-blue-900 p-4">
-      <h1 className="text-4xl font-bold text-white mb-8">Connexion au Multiverse</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <h1 className="text-4xl font-bold text-white mb-8">Connexion à Multiverse</h1>
       <div className="space-y-4">
         <Button
           onClick={() => handleSignIn('google')}
           disabled={loading}
-          className="w-full"
+          className="w-full bg-transparent hover:bg-white hover:bg-opacity-10 transition duration-300"
         >
           <FaGoogle className="mr-2" />
           Se connecter avec Google
@@ -47,7 +63,7 @@ export default function SignIn() {
         <Button
           onClick={() => handleSignIn('discord')}
           disabled={loading}
-          className="w-full"
+          className="w-full bg-transparent hover:bg-white hover:bg-opacity-10 transition duration-300"
         >
           <FaDiscord className="mr-2" />
           Se connecter avec Discord
