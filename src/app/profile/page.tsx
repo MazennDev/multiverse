@@ -5,7 +5,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import Image from 'next/image'
 import Spinner from '@/components/ui/spinner'
@@ -211,14 +210,18 @@ export default function ProfilePage() {
             </div>
             <div>
               <label htmlFor="bio" className="block mb-2">Bio</label>
-              <Textarea
+              <textarea
                 id="bio"
                 value={profile.bio}
-                onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-                maxLength={180}
+                onChange={(e) => {
+                  const lines = e.target.value.split('\n').slice(0, 4)
+                  const newBio = lines.map(line => line.slice(0, 45)).join('\n')
+                  setProfile({ ...profile, bio: newBio })
+                }}
+                maxLength={184} // 4 lines * 45 characters + 4 newline characters
                 rows={4}
-                className="resize-none"
-                placeholder="Écrivez votre bio ici (max 180 caractères)"
+                className="w-full p-2 bg-gray-700 text-white rounded-md resize-none"
+                placeholder="Écrivez votre bio ici (4 lignes max, 45 caractères par ligne)"
               />
             </div>
             <div className="flex space-x-4">
@@ -242,10 +245,10 @@ export default function ProfilePage() {
               />
               <div>
                 <h2 className="text-2xl font-bold">{profile.username}</h2>
-                <p className="text-gray-400 mt-2">{profile.bio || 'Aucune bio'}</p>
+                <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans">{profile.bio || 'Aucune bio'}</pre>
               </div>
             </div>
-            <div className="flex justify-between text-center bg-gray-700 bg-opacity-50 rounded-lg p-4">
+            <div className="flex justify-between text-center">
               <div>
                 <p className="font-bold text-2xl">{followerCount}</p>
                 <p className="text-gray-400">Abonnés</p>
