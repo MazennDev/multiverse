@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/use-toast'
-import Image from 'next/image'
 import Spinner from '@/components/ui/spinner'
 
 interface Profile {
@@ -22,6 +21,7 @@ export default function ProfilePage() {
   const [followerCount, setFollowerCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [postCount, setPostCount] = useState(0)
+  const [usernameError, setUsernameError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -73,10 +73,25 @@ export default function ProfilePage() {
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setUsernameError('')
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user && profile) {
+        // Check if username is already taken
+        const { data: existingUser, error: checkError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', profile.username)
+          .neq('id', user.id)
+          .single()
+
+        if (existingUser) {
+          setUsernameError("Ce nom d'utilisateur est déjà pris.")
+          setLoading(false)
+          return
+        }
+
         const { error } = await supabase
           .from('profiles')
           .update({
@@ -178,12 +193,9 @@ export default function ProfilePage() {
           <form onSubmit={handleUpdateProfile} className="space-y-4">
             <div className="flex flex-col items-center mb-4">
               <div className="relative mb-4">
-                <Image
-                  src={profile.avatar_url || '/default-avatar.png'}
-                  alt={profile.username}
-                  width={100}
-                  height={100}
-                  className="rounded-full cursor-pointer"
+                <div 
+                  className="w-24 h-24 rounded-full bg-cover bg-center cursor-pointer"
+                  style={{backgroundImage: `url(${profile.avatar_url || '/default-avatar.png'})`}}
                   onClick={handleAvatarClick}
                 />
                 <input
@@ -207,6 +219,7 @@ export default function ProfilePage() {
                   onChange={(e) => setProfile({ ...profile, username: e.target.value })}
                   className="rounded-full text-center"
                 />
+                {usernameError && <p className="text-red-500 text-sm mt-1">{usernameError}</p>}
               </div>
             </div>
             <div>
@@ -237,17 +250,14 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-4">
             <div className="flex flex-col items-center space-y-4">
-              <Image
-                src={profile.avatar_url || '/default-avatar.png'}
-                alt={profile.username}
-                width={100}
-                height={100}
-                className="rounded-full"
+              <div 
+                className="w-24 h-24 rounded-full bg-cover bg-center"
+                style={{backgroundImage: `url(${profile.avatar_url || '/default-avatar.png'})`}}
               />
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
               <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans text-center w-full">{profile.bio || 'Aucune bio'}</pre>
             </div>
-            <div className="flex justify-between text-center">
+            <div className="flex justify-center space-x-8 text-center">
               <div>
                 <p className="font-bold text-2xl">{followerCount}</p>
                 <p className="text-gray-400">Abonnés</p>
