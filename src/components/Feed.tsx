@@ -41,26 +41,31 @@ export default function Feed() {
   const fetchPosts = async () => {
     try {
       setLoading(true)
-      let { data, error } = await supabase
+      let { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select(`
-          id,
-          content,
-          created_at,
-          user_id,
-          user:profiles(username, avatar_url)
-        `)
+        .select('id, content, created_at, user_id')
         .order('created_at', { ascending: false })
         .limit(20)
-
-      if (error) throw error
-
-      if (data) {
-        const formattedPosts: Post[] = data.map(post => ({
-          ...post,
-          user: post.user[0]
+  
+      if (postsError) throw postsError
+  
+      if (postsData) {
+        const postsWithUsers = await Promise.all(postsData.map(async (post) => {
+          const { data: userData, error: userError } = await supabase
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('id', post.user_id)
+            .single()
+  
+          if (userError) throw userError
+  
+          return {
+            ...post,
+            user: userData
+          }
         }))
-        setPosts(formattedPosts)
+  
+        setPosts(postsWithUsers)
       }
     } catch (error) {
       console.error('Erreur lors de la récupération des posts:', error)
@@ -68,32 +73,41 @@ export default function Feed() {
       setLoading(false)
     }
   }
+  
 
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPostContent.trim() || !currentUser) return
-
+  
     setCreatingPost(true)
     try {
-      const { data, error } = await supabase
+      // First, insert the new post
+      const { data: postData, error: postError } = await supabase
         .from('posts')
         .insert({ content: newPostContent, user_id: currentUser.id })
-        .select(`
-          id,
-          content,
-          created_at,
-          user_id,
-          user:profiles(username, avatar_url)
-        `)
+        .select('id, content, created_at, user_id')
         .single()
-
-      if (error) throw error
-
-      if (data) {
+  
+      if (postError) throw postError
+  
+      if (postData) {
+        // Then, fetch the user profile separately
+        const { data: userData, error: userError } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', currentUser.id)
+          .single()
+  
+        if (userError) throw userError
+  
         const newPost: Post = {
-          ...data,
-          user: data.user[0]
+          ...postData,
+          user: {
+            username: userData.username,
+            avatar_url: userData.avatar_url
+          }
         }
+  
         setPosts(prevPosts => [newPost, ...prevPosts])
         setNewPostContent('')
         if (textareaRef.current) {
@@ -106,6 +120,7 @@ export default function Feed() {
       setCreatingPost(false)
     }
   }
+  
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewPostContent(e.target.value)
