@@ -60,7 +60,7 @@ export default function SignIn() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <h1 className="text-4xl font-bold text-white mb-8">Connexion à Multiverse</h1>
+      <h1 className="text-4xl font-bold text-white mb-8">Connexion au Multiverse</h1>
       <div className="space-y-4">
         <Button
           onClick={() => handleSignIn('google')}
