@@ -1,4 +1,5 @@
 'use client'
+
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
@@ -11,7 +12,7 @@ import Spinner from '@/components/ui/spinner'
 interface Profile {
   username: string
   avatar_url: string | null
-  bio: string[] | null
+  bio: string[]
 }
 
 export default function ProfilePage() {
@@ -27,78 +28,98 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const getProfile = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('username, avatar_url, bio')
-            .eq('id', user.id)
-            .single()
-
-          if (error) throw error
-
-          setProfile({
-            ...data,
-            bio: data.bio ? JSON.parse(data.bio) : Array(4).fill(''),
-            avatar_url: data.avatar_url || user.user_metadata.avatar_url
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('username, avatar_url, bio')
+              .eq('id', user.id)
+              .single()
+      
+            if (error) throw error
+      
+            let parsedBio: string[]
+            if (data.bio === null || data.bio === '') {
+              parsedBio = Array(4).fill('')
+            } else {
+              try {
+                parsedBio = JSON.parse(data.bio)
+                if (!Array.isArray(parsedBio) || parsedBio.length !== 4) {
+                  parsedBio = Array(4).fill('').map((_, i) => parsedBio[i] || '')
+                }
+              } catch (e) {
+                console.error('Error parsing bio:', e)
+                parsedBio = Array(4).fill('')
+              }
+            }
+      
+            setProfile({
+              ...data,
+              bio: parsedBio,
+              avatar_url: data.avatar_url || user.user_metadata.avatar_url
+            })
+      
+            // Fetch counts
+            const [{ count: followers }, { count: following }, { count: posts }] = await Promise.all([
+              supabase.from('followers').select('*', { count: 'exact' }).eq('following_id', user.id),
+              supabase.from('followers').select('*', { count: 'exact' }).eq('follower_id', user.id),
+              supabase.from('posts').select('*', { count: 'exact' }).eq('user_id', user.id)
+            ])
+            setFollowerCount(followers || 0)
+            setFollowingCount(following || 0)
+            setPostCount(posts || 0)
+          }
+        } catch (error) {
+          console.error('Error fetching profile:', error)
+          toast({
+            title: "Erreur",
+            description: "Impossible de charger le profil. Veuillez réessayer.",
+            variant: "destructive",
           })
-
-          // Fetch counts
-          const [{ count: followers }, { count: following }, { count: posts }] = await Promise.all([
-            supabase.from('followers').select('*', { count: 'exact' }).eq('following_id', user.id),
-            supabase.from('followers').select('*', { count: 'exact' }).eq('follower_id', user.id),
-            supabase.from('posts').select('*', { count: 'exact' }).eq('user_id', user.id)
-          ])
-          setFollowerCount(followers || 0)
-          setFollowingCount(following || 0)
-          setPostCount(posts || 0)
+        } finally {
+          setLoading(false)
         }
-      } catch (error) {
-        console.error('Error fetching profile:', error)
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger le profil. Veuillez réessayer.",
-          variant: "destructive",
-        })
-      } finally {
-        setLoading(false)
       }
-    }
+      
 
     getProfile()
   }, [supabase])
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user && profile) {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          username: profile.username,
-          bio: JSON.stringify(profile.bio),
-          avatar_url: profile.avatar_url,
-        })
-        .eq('id', user.id)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && profile) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            username: profile.username,
+            bio: JSON.stringify(profile.bio),
+            avatar_url: profile.avatar_url,
+          })
+          .eq('id', user.id)
 
-      if (error) {
-        toast({
-          title: "Erreur",
-          description: "Impossible de mettre à jour le profil. Veuillez réessayer.",
-          variant: "destructive",
-        })
-      } else {
+        if (error) throw error
+
         toast({
           title: "Succès",
           description: "Votre profil a été mis à jour avec succès.",
         })
         setEditing(false)
       }
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le profil. Veuillez réessayer.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const handleAvatarClick = () => {
