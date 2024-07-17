@@ -10,22 +10,41 @@ import { toast } from '@/components/ui/use-toast'
 export default function SetUsername() {
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user) {
-        const { error } = await supabase
+        // Check if username already exists
+        const { data: existingUser, error: checkError } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('username', username)
+          .single()
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          throw checkError
+        }
+
+        if (existingUser) {
+          setError("Ce nom d'utilisateur est déjà pris. Veuillez en choisir un autre.")
+          return
+        }
+
+        // If username is not taken, proceed with the update
+        const { error: updateError } = await supabase
           .from('profiles')
           .upsert({ id: user.id, username })
 
-        if (error) throw error
+        if (updateError) throw updateError
 
         toast({
           title: "Succès",
@@ -36,11 +55,7 @@ export default function SetUsername() {
       }
     } catch (error) {
       console.error('Error setting username:', error)
-      toast({
-        title: "Erreur",
-        description: "Impossible de définir le nom d'utilisateur. Veuillez réessayer.",
-        variant: "destructive",
-      })
+      setError("Une erreur s'est produite. Veuillez réessayer.")
     } finally {
       setLoading(false)
     }
@@ -58,6 +73,7 @@ export default function SetUsername() {
             placeholder="Nom d'utilisateur"
             className="mb-4"
           />
+          {error && <p className="text-red-500 mb-4">{error}</p>}
           <Button type="submit" disabled={loading || !username} className="w-full">
             {loading ? 'Chargement...' : 'Confirmer'}
           </Button>
