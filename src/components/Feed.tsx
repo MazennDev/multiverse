@@ -24,7 +24,6 @@ export default function Feed() {
   const [loading, setLoading] = useState(true)
   const [newPostContent, setNewPostContent] = useState('')
   const [creatingPost, setCreatingPost] = useState(false)
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const supabase = createClientComponentClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -33,10 +32,24 @@ export default function Feed() {
     fetchCurrentUser()
   }, [])
 
-  const fetchCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setCurrentUser(user)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [currentUserProfile, setCurrentUserProfile] = useState<{ username: string, avatar_url: string } | null>(null)
+
+const fetchCurrentUser = async () => {
+  const { data: { user } } = await supabase.auth.getUser()
+  setCurrentUser(user)
+  if (user) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('id', user.id)
+      .single()
+    if (!error && data) {
+      setCurrentUserProfile(data)
+    }
   }
+}
+
 
   const fetchPosts = async () => {
     try {
@@ -77,10 +90,14 @@ export default function Feed() {
 
   const getAvatarUrl = (avatarPath: string | null) => {
     if (!avatarPath) return '/default-avatar.png'
+    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+      return avatarPath
+    }
     const supabase = createClientComponentClient()
     const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath)
     return data.publicUrl
   }
+  
 
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -141,9 +158,9 @@ export default function Feed() {
         <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
           <div className="flex items-start space-x-4">
             <Avatar
-              src={getAvatarUrl(currentUser.user_metadata.avatar_url)}
-              alt={currentUser.user_metadata.username || ''}
-              className="w-10 h-10"
+                src={currentUserProfile ? getAvatarUrl(currentUserProfile.avatar_url) : '/default-avatar.png'}
+                alt={currentUserProfile?.username || ''}
+                className="w-10 h-10"
             />
             <div className="flex-grow">
               <textarea
