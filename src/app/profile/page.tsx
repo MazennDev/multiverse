@@ -308,18 +308,18 @@ export default function ProfilePage() {
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
               <pre className="text-gray-400 mt-2 whitespace-pre-wrap font-sans text-center w-full">{profile.bio || 'Aucune bio'}</pre>
             </div>
-            <div className="flex justify-center items-center space-x-8 text-center">
-                <div className="w-20">
+            <div className="flex justify-center items-start space-x-8 text-center">
+                <div className="w-24">
                     <p className="font-bold text-2xl">{followerCount}</p>
-                    <p className="text-gray-400">Abonnés</p>
+                    <p className="text-gray-400 text-sm">Abonnés</p>
                 </div>
-                <div className="w-24 border-x border-gray-600 px-4">
+                <div className="w-28 border-x border-gray-600 px-2">
                     <p className="font-bold text-2xl">{followingCount}</p>
-                    <p className="text-gray-400">Abonnements</p>
+                    <p className="text-gray-400 text-sm">Abonnements</p>
                 </div>
-                <div className="w-20">
+                <div className="w-24">
                     <p className="font-bold text-2xl">{postCount}</p>
-                    <p className="text-gray-400">Publications</p>
+                    <p className="text-gray-400 text-sm">Publications</p>
                 </div>
             </div>
             <Button onClick={() => setEditing(true)} className="w-full rounded-full">
