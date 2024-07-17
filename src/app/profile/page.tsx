@@ -145,10 +145,12 @@ export default function ProfilePage() {
         if (uploadError) throw uploadError
   
         const { data } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(uploadData.path)
-  
+        .from('avatars')
+        .getPublicUrl(uploadData.path)
+
         const publicUrl = data.publicUrl
+        console.log('New avatar URL:', publicUrl);
+
   
         // Update local state
         setProfile({ ...profile, avatar_url: publicUrl })
@@ -214,15 +216,21 @@ export default function ProfilePage() {
                     {profile.username.charAt(0).toUpperCase()}
                   </div>
                 ) : (
-                  <img
+                    <img
                     key={profile.avatar_url}
-                    src={profile.avatar_url || '/default-avatar.png'}
+                    src={`${profile.avatar_url || '/default-avatar.png'}?t=${Date.now()}`}
                     alt={profile.username}
-                    className="w-24 h-24 rounded-full object-cover cursor-pointer"
-                    onClick={handleAvatarClick}
-                    onError={handleImageError}
-                    onLoad={() => console.log('Avatar loaded successfully:', profile.avatar_url)}
+                    className="w-24 h-24 rounded-full object-cover"
+                    onError={(e) => {
+                      console.error('Failed to load avatar image:', e.currentTarget.src);
+                      setAvatarError(true);
+                    }}
+                    onLoad={() => {
+                      console.log('Avatar loaded successfully:', profile.avatar_url);
+                      setAvatarError(false);
+                    }}
                   />
+                  
                 )}
                 <input
                   type="file"
@@ -282,12 +290,18 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <img
-                  key={profile.avatar_url}
-                  src={profile.avatar_url || '/default-avatar.png'}
-                  alt={profile.username}
-                  className="w-24 h-24 rounded-full object-cover"
-                  onError={handleImageError}
-                  onLoad={() => console.log('Avatar loaded successfully:', profile.avatar_url)}
+                    key={profile.avatar_url}
+                    src={`${profile.avatar_url || '/default-avatar.png'}?t=${Date.now()}`}
+                    alt={profile.username}
+                    className="w-24 h-24 rounded-full object-cover"
+                    onError={(e) => {
+                        console.error('Failed to load avatar image:', e.currentTarget.src);
+                        setAvatarError(true);
+                    }}
+                    onLoad={() => {
+                        console.log('Avatar loaded successfully:', profile.avatar_url);
+                        setAvatarError(false);
+                    }}
                 />
               )}
               <h2 className="text-2xl font-bold text-center">{profile.username}</h2>
