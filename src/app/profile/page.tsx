@@ -44,7 +44,9 @@ export default function ProfilePage() {
             ...data,
             bio: data.bio || '',
             avatar_url: data.avatar_url || user.user_metadata.avatar_url
-          })
+          });
+          console.log('Avatar URL:', data.avatar_url || user.user_metadata.avatar_url);
+          
 
           // Fetch counts
           const [{ count: followers }, { count: following }, { count: posts }] = await Promise.all([
@@ -174,10 +176,11 @@ export default function ProfilePage() {
     }
   }  
 
-  const handleImageError = () => {
-    setAvatarError(true)
-    console.error('Failed to load avatar image')
-  }
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.error('Failed to load avatar image:', e.currentTarget.src);
+    setAvatarError(true);
+  };
+  
 
   if (loading) {
     return (
