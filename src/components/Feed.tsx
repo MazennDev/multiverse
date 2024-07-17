@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { toast } from '@/components/ui/use-toast'
 import { PhotoIcon, HeartIcon, ChatBubbleLeftIcon, ShareIcon } from '@heroicons/react/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid'
+import PostModal from './PostModal'
 
 interface User extends SupabaseUser {
   username?: string
@@ -55,6 +56,7 @@ export default function Feed() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const supabase = createClientComponentClient()
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
@@ -87,10 +89,21 @@ export default function Feed() {
     const channel = supabase
       .channel('public:posts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, handleNewPost)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, handleUpdatedPost)
       .subscribe()
-
+  
     realtimeChannelRef.current = channel
   }
+  
+  const handleUpdatedPost = (payload: any) => {
+    const updatedPost = payload.new as Post;
+    setPosts(currentPosts => 
+      currentPosts.map(post => 
+        post.id === updatedPost.id ? { ...post, ...updatedPost } : post
+      )
+    );
+  }
+  
 
   const handleNewPost = async (payload: any) => {
     const newPost = payload.new as Post
@@ -236,7 +249,13 @@ export default function Feed() {
       setLikedPosts(new Set(data.map(like => like.post_id)))
     }
   }
-
+  const handleComment = (postId: string) => {
+    setSelectedPostId(postId)
+  }
+  const handleShare = (postId: string) => {
+    // Implement share functionality
+    console.log(`Share post ${postId}`)
+  }
   const handleLike = async (postId: string) => {
     if (!currentUser) return
     const isLiked = likedPosts.has(postId)
@@ -252,31 +271,19 @@ export default function Feed() {
           newSet.delete(postId)
           return newSet
         })
+        await supabase.rpc('decrement_likes', { post_id: postId })
       } else {
         await supabase
           .from('likes')
           .insert({ user_id: currentUser.id, post_id: postId })
         setLikedPosts(prev => new Set(prev).add(postId))
+        await supabase.rpc('increment_likes', { post_id: postId })
       }
-      const { data } = await supabase
-        .from('posts')
-        .select('likes')
-        .eq('id', postId)
-        .single()
-      const newLikesCount = isLiked ? (data?.likes ?? 1) - 1 : (data?.likes ?? 0) + 1
-      await supabase
-        .from('posts')
-        .update({ likes: newLikesCount })
-        .eq('id', postId)
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post.id === postId ? { ...post, likes: newLikesCount } : post
-        )
-      )
     } catch (error) {
       console.error('Error handling like:', error)
     }
   }
+  
   
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,68 +311,81 @@ export default function Feed() {
 
   const MAX_POST_LENGTH = 1000; // Adjust this value as needed
 
-const createPost = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!newPostContent.trim() && !selectedImage) return;
-  if (!currentUser) return;
-  if (newPostContent.length > MAX_POST_LENGTH) {
-    toast({
-      title: "Error",
-      description: `Your post is too long. Maximum length is ${MAX_POST_LENGTH} characters.`,
-      variant: "destructive",
-    });
-    return;
-  }
-
-  setCreatingPost(true);
-  try {
-    let imageUrl = null;
-    if (selectedImage) {
-      imageUrl = await uploadImage(selectedImage);
+  const createPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPostContent.trim() && !selectedImage) return;
+    if (!currentUser) return;
+    if (newPostContent.length > MAX_POST_LENGTH) {
+      toast({
+        title: "Error",
+        description: `Your post is too long. Maximum length is ${MAX_POST_LENGTH} characters.`,
+        variant: "destructive",
+      });
+      return;
     }
-
-    const newPost: Partial<Post> = {
-      user_id: currentUser.id,
-      content: newPostContent.trim(),
-      image_url: imageUrl || undefined,
-      created_at: new Date().toISOString(),
-      likes: 0,
-      user: {
-        username: currentUser.username || '',
-        avatar_url: currentUser.avatar_url || '',
-      },
-    };
-    
-
-    const { data: postData, error: postError } = await supabase
-      .from('posts')
-      .insert(newPost)
-      .select()
-      .single();
-
-    if (postError) throw postError;
-
-    setPosts(prevPosts => [postData as Post, ...prevPosts]);
-    setNewPostContent('');
-    setSelectedImage(null);
-    if (imageInputRef.current) {
-      imageInputRef.current.value = '';
+  
+    setCreatingPost(true);
+    try {
+      let imageUrl = null;
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage);
+      }
+  
+      const newPost: Partial<Post> = {
+        user_id: currentUser.id,
+        content: newPostContent.trim(),
+        image_url: imageUrl || undefined,
+        created_at: new Date().toISOString(),
+        likes: 0,
+      };
+  
+      const { data: postData, error: postError } = await supabase
+        .from('posts')
+        .insert(newPost)
+        .select()
+        .single();
+  
+      if (postError) throw postError;
+  
+      // Fetch user data separately
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', currentUser.id)
+        .single();
+  
+      if (userError) throw userError;
+  
+      const fullPost: Post = {
+        ...postData,
+        user: {
+          username: userData.username,
+          avatar_url: userData.avatar_url,
+        },
+      };
+  
+      setPosts(prevPosts => [fullPost, ...prevPosts]);
+      setNewPostContent('');
+      setSelectedImage(null);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+      toast({
+        title: "Success",
+        description: "Your post has been created successfully.",
+      });
+    } catch (error) {
+      console.error('Error creating post:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create post. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingPost(false);
     }
-    toast({
-      title: "Success",
-      description: "Your post has been created successfully.",
-    });
-  } catch (error) {
-    console.error('Error creating post:', error);
-    toast({
-      title: "Error",
-      description: "Failed to create post. Please try again.",
-      variant: "destructive",
-    });
-  } finally {
-    setCreatingPost(false);
-  }
-};
+  };
+  
 
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -452,7 +472,7 @@ const createPost = async (e: React.FormEvent) => {
                 />
                 <div className="flex-grow">
                   <div className="flex items-center space-x-2">
-                  <Link href={`/profile/${post.user.username}`}>
+                    <Link href={`/profile/${post.user.username}`}>
                       <span className="font-semibold text-white hover:underline">{post.user.username}</span>
                     </Link>
                     <span className="text-sm text-gray-400">
@@ -475,11 +495,17 @@ const createPost = async (e: React.FormEvent) => {
                       )}
                       <span>{post.likes}</span>
                     </button>
-                    <button className="flex items-center space-x-1 text-gray-400 hover:text-blue-500">
+                    <button 
+                      onClick={() => handleComment(post.id)}
+                      className="flex items-center space-x-1 text-gray-400 hover:text-blue-500"
+                    >
                       <ChatBubbleLeftIcon className="w-5 h-5" />
                       <span>{post.comment_count || 0}</span>
                     </button>
-                    <button className="flex items-center space-x-1 text-gray-400 hover:text-green-500">
+                    <button 
+                      onClick={() => handleShare(post.id)}
+                      className="flex items-center space-x-1 text-gray-400 hover:text-green-500"
+                    >
                       <ShareIcon className="w-5 h-5" />
                     </button>
                   </div>
@@ -488,6 +514,22 @@ const createPost = async (e: React.FormEvent) => {
             </div>
           ))}
         </div>
+      )}
+      {selectedPostId && (
+        <PostModal 
+          postId={selectedPostId} 
+          onClose={() => setSelectedPostId(null)}
+          currentUser={currentUser}
+          onCommentAdded={(postId) => {
+            setPosts(prevPosts => 
+              prevPosts.map(post => 
+                post.id === postId 
+                  ? { ...post, comment_count: (post.comment_count || 0) + 1 } 
+                  : post
+              )
+            )
+          }}
+        />
       )}
     </div>
   )

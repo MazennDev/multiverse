@@ -1,5 +1,9 @@
-// src/types.ts
 import { User as SupabaseUser } from '@supabase/auth-helpers-nextjs';
+
+export interface User extends SupabaseUser {
+  username?: string;
+  avatar_url?: string;
+}
 
 export interface Post {
   id: string;
@@ -26,9 +30,4 @@ export interface Comment {
     username: string;
     avatar_url: string;
   };
-}
-
-export interface User extends SupabaseUser {
-  username?: string;
-  avatar_url?: string;
 }

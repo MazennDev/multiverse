@@ -12,19 +12,19 @@ import Image from 'next/image';
 interface PostModalProps {
   postId: string;
   onClose: () => void;
+  currentUser: User | null;
+  onCommentAdded: (postId: string) => void;
 }
 
-export default function PostModal({ postId, onClose }: PostModalProps) {
+export default function PostModal({ postId, onClose, currentUser, onCommentAdded }: PostModalProps) {
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
     fetchPost();
     fetchComments();
-    fetchCurrentUser();
   }, [postId]);
 
   const fetchPost = async () => {
@@ -53,22 +53,6 @@ export default function PostModal({ postId, onClose }: PostModalProps) {
     }
   };
 
-  const fetchCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      if (error) {
-        console.error('Error fetching user profile:', error);
-      } else {
-        setCurrentUser({ ...user, ...data });
-      }
-    }
-  };
-
   const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !newComment.trim()) return;
@@ -88,6 +72,7 @@ export default function PostModal({ postId, onClose }: PostModalProps) {
 
       setComments([...comments, data]);
       setNewComment('');
+      onCommentAdded(postId);
     } catch (error) {
       console.error('Error adding comment:', error);
     }
@@ -96,7 +81,7 @@ export default function PostModal({ postId, onClose }: PostModalProps) {
   if (!post) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-gray-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
