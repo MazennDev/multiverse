@@ -1,18 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import Image from 'next/image'
 
 interface Profile {
   username: string
   avatar_url: string | null
-  bio: string | null
+  bio: string[] | null
 }
 
 export default function ProfilePage() {
@@ -22,6 +21,7 @@ export default function ProfilePage() {
   const [followerCount, setFollowerCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [postCount, setPostCount] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -38,7 +38,11 @@ export default function ProfilePage() {
         if (error) {
           console.error('Error fetching profile:', error)
         } else {
-          setProfile(data)
+          setProfile({
+            ...data,
+            bio: data.bio ? JSON.parse(data.bio) : Array(4).fill(''),
+            avatar_url: data.avatar_url || user.user_metadata.avatar_url
+          })
         }
 
         // Fetch counts
@@ -67,7 +71,7 @@ export default function ProfilePage() {
         .from('profiles')
         .update({
           username: profile.username,
-          bio: profile.bio,
+          bio: JSON.stringify(profile.bio),
           avatar_url: profile.avatar_url,
         })
         .eq('id', user.id)
@@ -90,6 +94,33 @@ export default function ProfilePage() {
     setLoading(false)
   }
 
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(`${Date.now()}_${file.name}`, file)
+
+      if (error) {
+        toast({
+          title: "Erreur",
+          description: "Impossible de télécharger l'avatar. Veuillez réessayer.",
+          variant: "destructive",
+        })
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(data.path)
+
+        setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null)
+      }
+    }
+  }
+
   if (loading) {
     return <div className="flex justify-center items-center h-screen">Chargement...</div>
   }
@@ -100,7 +131,7 @@ export default function ProfilePage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <div className="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-lg shadow-lg p-6">
+      <div className="space-y-6">
         <h1 className="text-3xl font-bold mb-6 text-center">Profil</h1>
         {editing ? (
           <form onSubmit={handleUpdateProfile} className="space-y-4">
@@ -113,21 +144,20 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label htmlFor="avatar" className="block mb-2">URL de l'avatar</label>
-              <Input
-                id="avatar"
-                value={profile.avatar_url || ''}
-                onChange={(e) => setProfile({ ...profile, avatar_url: e.target.value })}
-                placeholder="https://example.com/avatar.jpg"
-              />
-            </div>
-            <div>
               <label htmlFor="bio" className="block mb-2">Bio</label>
-              <Textarea
-                id="bio"
-                value={profile.bio || ''}
-                onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-              />
+              {(profile.bio || Array(4).fill('')).map((line, index) => (
+                <Input
+                  key={index}
+                  value={line}
+                  onChange={(e) => {
+                    const newBio = [...(profile.bio || Array(4).fill(''))]
+                    newBio[index] = e.target.value.slice(0, 45)
+                    setProfile({ ...profile, bio: newBio })
+                  }}
+                  maxLength={45}
+                  className="mb-2"
+                />
+              ))}
             </div>
             <div className="flex space-x-4">
               <Button type="submit" disabled={loading} className="flex-1">
@@ -141,18 +171,28 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
-              {profile.avatar_url && (
+              <div className="relative">
                 <Image
-                  src={profile.avatar_url}
+                  src={profile.avatar_url || '/default-avatar.png'}
                   alt={profile.username}
                   width={100}
                   height={100}
-                  className="rounded-full"
+                  className="rounded-full cursor-pointer"
+                  onClick={handleAvatarClick}
                 />
-              )}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="image/*"
+                />
+              </div>
               <div>
                 <h2 className="text-2xl font-bold">{profile.username}</h2>
-                <p className="text-gray-400">{profile.bio || 'Aucune bio'}</p>
+                {(profile.bio || []).map((line, index) => (
+                  <p key={index} className="text-gray-400">{line}</p>
+                ))}
               </div>
             </div>
             <div className="flex justify-between text-center">

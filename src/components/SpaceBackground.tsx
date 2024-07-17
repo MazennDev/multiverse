@@ -28,10 +28,17 @@ const SpaceBackground = () => {
       })
     }
 
+    let gradientOffset = 0
+
     function animate() {
       if (!canvas || !ctx) return
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+      gradient.addColorStop(0, `hsl(${(gradientOffset) % 360}, 70%, 20%)`)
+      gradient.addColorStop(1, `hsl(${(gradientOffset + 60) % 360}, 70%, 20%)`)
+      ctx.fillStyle = gradient
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       stars.forEach(star => {
@@ -51,6 +58,7 @@ const SpaceBackground = () => {
         if (star.y < 0 || star.y > canvas.height) star.vy = -star.vy
       })
 
+      gradientOffset += 0.1
       requestAnimationFrame(animate)
     }
 
