@@ -1,8 +1,8 @@
 import { User as SupabaseUser } from '@supabase/auth-helpers-nextjs';
 
 export interface User extends SupabaseUser {
-  username?: string;
-  avatar_url?: string;
+  username?: string
+  avatar_url?: string
 }
 
 export interface Post {
@@ -20,14 +20,16 @@ export interface Post {
 }
 
 export interface Comment {
-  id: string;
-  post_id: string;
-  user_id: string;
-  content: string;
-  created_at: string;
-  parent_comment_id?: string;
-  user: {
-    username: string;
-    avatar_url: string;
-  };
-}
+    id: string;
+    post_id: string;
+    user_id: string;
+    content: string;
+    created_at: string;
+    parent_comment_id?: string;
+    user: {
+      username: string;
+      avatar_url: string;
+    };
+    replies?: Comment[];
+  }
+  

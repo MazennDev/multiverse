@@ -252,7 +252,7 @@ export default function Feed() {
   const handleComment = (postId: string) => {
     setSelectedPostId(postId)
   }
-  
+
   const handleShare = async (postId: string) => {
     const url = `${window.location.origin}/post/${postId}`
     try {
@@ -271,45 +271,44 @@ export default function Feed() {
     }
   }
   const handleLike = async (postId: string) => {
-    if (!currentUser) return;
-    const isLiked = likedPosts.has(postId);
-    try {
-      if (isLiked) {
-        await supabase
-          .from('likes')
-          .delete()
-          .eq('user_id', currentUser.id)
-          .eq('post_id', postId);
-        setLikedPosts(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(postId);
-          return newSet;
-        });
-        setPosts(prevPosts =>
-          prevPosts.map(post =>
-            post.id === postId ? { ...post, likes: post.likes - 1 } : post
-          )
-        );
-        await supabase.rpc('decrement_likes', { post_id: postId });
-      } else {
-        await supabase
-          .from('likes')
-          .insert({ user_id: currentUser.id, post_id: postId });
-        setLikedPosts(prev => new Set(prev).add(postId));
-        setPosts(prevPosts =>
-          prevPosts.map(post =>
-            post.id === postId ? { ...post, likes: post.likes + 1 } : post
-          )
-        );
-        await supabase.rpc('increment_likes', { post_id: postId });
-      }
-    } catch (error) {
-      console.error('Error handling like:', error);
-      // Revert the optimistic update if there's an error
-      setLikedPosts(prev => new Set(prev));
-      setPosts(prevPosts => [...prevPosts]);
+  if (!currentUser) return;
+  const isLiked = likedPosts.has(postId);
+  try {
+    if (isLiked) {
+      await supabase
+        .from('likes')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .eq('post_id', postId);
+      setLikedPosts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(postId);
+        return newSet;
+      });
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId ? { ...post, likes: Math.max(0, post.likes - 1) } : post
+        )
+      );
+    } else {
+      await supabase
+        .from('likes')
+        .insert({ user_id: currentUser.id, post_id: postId });
+      setLikedPosts(prev => new Set(prev).add(postId));
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId ? { ...post, likes: post.likes + 1 } : post
+        )
+      );
     }
-  };
+  } catch (error) {
+    console.error('Error handling like:', error);
+    // Revert the optimistic update if there's an error
+    fetchPosts();
+    fetchLikedPosts();
+  }
+};
+
   
   
   
@@ -544,21 +543,34 @@ export default function Feed() {
         </div>
       )}
       {selectedPostId && (
-        <PostModal 
-          postId={selectedPostId} 
-          onClose={() => setSelectedPostId(null)}
-          currentUser={currentUser}
-          onCommentAdded={(postId) => {
-            setPosts(prevPosts => 
-              prevPosts.map(post => 
-                post.id === postId 
-                  ? { ...post, comment_count: (post.comment_count || 0) + 1 } 
-                  : post
-              )
-            )
-          }}
-        />
-      )}
+  <PostModal 
+    postId={selectedPostId} 
+    onClose={() => setSelectedPostId(null)}
+    currentUser={currentUser}
+    onCommentAdded={(postId) => {
+      setPosts(prevPosts => 
+        prevPosts.map(post => 
+          post.id === postId 
+            ? { ...post, comment_count: (post.comment_count || 0) + 1 } 
+            : post
+        )
+      )
+    }}
+    onPostDeleted={(postId) => {
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId))
+      setSelectedPostId(null)
+    }}
+    onPostEdited={(postId, newContent) => {
+      setPosts(prevPosts => 
+        prevPosts.map(post => 
+          post.id === postId 
+            ? { ...post, content: newContent } 
+            : post
+        )
+      )
+    }}
+  />
+)}
     </div>
   )
 }
