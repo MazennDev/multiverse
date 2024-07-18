@@ -80,14 +80,41 @@ export default function PostModal({
 
         return {
           ...comment,
-          user: userData
+          user: userData,
+          replies: []
         };
       }));
 
-      setComments(commentsWithUsers);
+      // Organize comments into a tree structure
+      const commentTree = buildCommentTree(commentsWithUsers);
+      setComments(commentTree);
     } catch (error) {
       console.error('Error fetching comments:', error);
     }
+  };
+
+  const buildCommentTree = (comments: Comment[]): Comment[] => {
+    const commentMap: { [key: string]: Comment } = {};
+    const roots: Comment[] = [];
+
+    comments.forEach(comment => {
+      commentMap[comment.id] = { ...comment, replies: comment.replies || [] };
+    });
+
+    comments.forEach(comment => {
+      if (comment.parent_comment_id) {
+        const parent = commentMap[comment.parent_comment_id];
+        if (parent) {
+          parent.replies.push(commentMap[comment.id]);
+        } else {
+          roots.push(commentMap[comment.id]);
+        }
+      } else {
+        roots.push(commentMap[comment.id]);
+      }
+    });
+
+    return roots;
   };
 
   const handleComment = async (e: React.FormEvent, parentCommentId?: string | null) => {
@@ -101,7 +128,7 @@ export default function PostModal({
           post_id: postId,
           user_id: currentUser.id,
           content: newComment.trim(),
-          parent_comment_id: parentCommentId || undefined,
+          parent_comment_id: parentCommentId || null,
         })
         .select()
         .single();
@@ -114,9 +141,28 @@ export default function PostModal({
           username: currentUser.username,
           avatar_url: currentUser.avatar_url,
         },
+        replies: []
       };
 
-      setComments(prevComments => [...prevComments, commentWithUser]);
+      setComments(prevComments => {
+        const updatedComments = [...prevComments];
+        if (parentCommentId) {
+          const addReply = (comments: Comment[]): Comment[] => 
+            comments.map(c => {
+              if (c.id === parentCommentId) {
+                return { ...c, replies: [...c.replies, commentWithUser] };
+              }
+              if (c.replies.length > 0) {
+                return { ...c, replies: addReply(c.replies) };
+              }
+              return c;
+            });
+          return addReply(updatedComments);
+        } else {
+          return [...updatedComments, commentWithUser];
+        }
+      });
+
       setNewComment('');
       setReplyingTo(null);
       onCommentAdded(postId);
@@ -125,6 +171,10 @@ export default function PostModal({
       if (post) {
         const updatedPost = { ...post, comment_count: (post.comment_count || 0) + 1 };
         setPost(updatedPost);
+        await supabase
+          .from('posts')
+          .update({ comment_count: updatedPost.comment_count })
+          .eq('id', post.id);
       }
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -153,15 +203,32 @@ export default function PostModal({
         .from('comments')
         .delete()
         .eq('id', commentId);
-
+  
       if (error) throw error;
-
-      setComments(prevComments => prevComments.filter(c => c.id !== commentId));
+  
+      // Update local state
+      setComments(prevComments => {
+        const updateComments = (comments: Comment[]): Comment[] => 
+          comments.filter(c => {
+            if (c.id === commentId) return false;
+            if (c.replies.length > 0) {
+              c.replies = updateComments(c.replies);
+            }
+            return true;
+          });
+        return updateComments(prevComments);
+      });
       
       // Update comment count
       if (post) {
         const updatedPost = { ...post, comment_count: Math.max((post.comment_count || 0) - 1, 0) };
         setPost(updatedPost);
+        
+        // Update the post's comment count in the database
+        await supabase
+          .from('posts')
+          .update({ comment_count: updatedPost.comment_count })
+          .eq('id', post.id);
       }
     } catch (error) {
       console.error('Error deleting comment:', error);
@@ -179,11 +246,19 @@ export default function PostModal({
 
       if (error) throw error;
 
-      setComments(prevComments =>
-        prevComments.map(c =>
-          c.id === commentId ? { ...c, content: newContent } : c
-        )
-      );
+      setComments(prevComments => {
+        const updateComments = (comments: Comment[]): Comment[] =>
+          comments.map(c => {
+            if (c.id === commentId) {
+              return { ...c, content: newContent };
+            }
+            if (c.replies.length > 0) {
+              return { ...c, replies: updateComments(c.replies) };
+            }
+            return c;
+          });
+        return updateComments(prevComments);
+      });
       setEditingCommentId(null);
     } catch (error) {
       console.error('Error editing comment:', error);
@@ -344,6 +419,7 @@ export default function PostModal({
                 onEdit={handleEditComment}
                 setEditingCommentId={setEditingCommentId}
                 editingCommentId={editingCommentId}
+                depth={0}
               />
             ))}
           </div>
@@ -389,6 +465,7 @@ interface CommentItemProps {
   onEdit: (commentId: string, newContent: string) => void;
   setEditingCommentId: (id: string | null) => void;
   editingCommentId: string | null;
+  depth: number;
 }
 
 function CommentItem({ 
@@ -398,7 +475,8 @@ function CommentItem({
   onDelete, 
   onEdit,
   setEditingCommentId,
-  editingCommentId
+  editingCommentId,
+  depth
 }: CommentItemProps) {
   const [editedContent, setEditedContent] = useState(comment.content);
 
@@ -408,7 +486,7 @@ function CommentItem({
   };
 
   return (
-    <div className="flex items-start space-x-3 mb-2">
+    <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
       <Avatar src={comment.user.avatar_url} alt={comment.user.username} className="w-8 h-8" />
       <div className="flex-grow">
         <div className="flex items-center space-x-2">
@@ -420,39 +498,53 @@ function CommentItem({
         {editingCommentId === comment.id ? (
           <div>
             <textarea
-              value={editedContent}
-              onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none mt-1"
-              rows={2}
-            />
-            <div className="flex space-x-2 mt-1">
-              <Button onClick={handleEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-full text-xs">
-                Save
-              </Button>
-              <Button onClick={() => setEditingCommentId(null)} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded-full text-xs">
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-gray-200">{comment.content}</p>
-        )}
-        <div className="flex space-x-2 mt-1">
-          <Button onClick={onReply} className="text-blue-400 hover:text-blue-500 text-xs">
-            Reply
-          </Button>
-          {currentUser && currentUser.id === comment.user_id && (
-            <>
-              <Button onClick={() => setEditingCommentId(comment.id)} className="text-yellow-400 hover:text-yellow-500 text-xs">
-                Edit
-              </Button>
-              <Button onClick={() => onDelete(comment.id)} className="text-red-400 hover:text-red-500 text-xs">
-                Delete
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+                            value={editedContent}
+                            onChange={(e) => setEditedContent(e.target.value)}
+                            className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none mt-1"
+                            rows={2}
+                          />
+                          <div className="flex space-x-2 mt-1">
+                            <Button onClick={handleEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-full text-xs">
+                              Save
+                            </Button>
+                            <Button onClick={() => setEditingCommentId(null)} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded-full text-xs">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-200">{comment.content}</p>
+                      )}
+                      <div className="flex space-x-2 mt-1">
+                        <Button onClick={onReply} className="text-blue-400 hover:text-blue-500 text-xs">
+                          Reply
+                        </Button>
+                        {currentUser && currentUser.id === comment.user_id && (
+                          <>
+                            <Button onClick={() => setEditingCommentId(comment.id)} className="text-yellow-400 hover:text-yellow-500 text-xs">
+                              Edit
+                            </Button>
+                            <Button onClick={() => onDelete(comment.id)} className="text-red-400 hover:text-red-500 text-xs">
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      {comment.replies && comment.replies.map(reply => (
+                        <CommentItem
+                          key={reply.id}
+                          comment={reply}
+                          currentUser={currentUser}
+                          onReply={onReply}
+                          onDelete={onDelete}
+                          onEdit={onEdit}
+                          setEditingCommentId={setEditingCommentId}
+                          editingCommentId={editingCommentId}
+                          depth={depth + 1}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              
