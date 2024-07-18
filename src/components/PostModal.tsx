@@ -152,8 +152,8 @@ export default function PostModal({
       const userMap: { [key: string]: { username: string; avatar_url: string } } = {};
       usersData.forEach(user => {
         userMap[user.id] = {
-          username: user.username,
-          avatar_url: user.avatar_url,
+          username: user.username || 'Utilisateur inconnu',
+          avatar_url: user.avatar_url || DEFAULT_AVATAR,
         };
       });
   
@@ -231,17 +231,12 @@ export default function PostModal({
       setComments(prevComments => {
         const updatedComments = prevComments.map(c => ({ ...c, replies: c.replies || [] }));
         if (parentCommentId) {
-          const addReply = (comments: Comment[]): Comment[] => 
-            comments.map(c => {
-              if (c.id === parentCommentId) {
-                return { ...c, replies: [...c.replies, commentWithUser] };
-              }
-              if (c.replies && c.replies.length > 0) {
-                return { ...c, replies: addReply(c.replies) };
-              }
-              return c;
-            });
-          return addReply(updatedComments);
+          return updatedComments.map(c => {
+            if (c.id === parentCommentId) {
+              return { ...c, replies: [...c.replies, commentWithUser] };
+            }
+            return c;
+          });
         } else {
           return [...updatedComments, commentWithUser];
         }
