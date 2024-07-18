@@ -48,7 +48,7 @@ interface Comment {
     username: string;
     avatar_url: string;
   };
-  replies: Comment[];
+  replies?: Comment[];
 }
 
 export default function Feed() {

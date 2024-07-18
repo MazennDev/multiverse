@@ -153,30 +153,33 @@ export default function PostModal({
               username: 'Utilisateur inconnu',
               avatar_url: DEFAULT_AVATAR,
             },
+            replies: [],
           };
         }
   
         return {
           ...comment,
           user: userData,
+          replies: [],
         };
       }));
   
-      setComments(commentsWithUsers);
+      // Build the comment tree
+      const commentTree = buildCommentTree(commentsWithUsers);
+      setComments(commentTree);
     } catch (error) {
       console.error('Error fetching comments:', error);
     }
   };
   
-
   const buildCommentTree = (comments: Comment[]): Comment[] => {
     const commentMap: { [key: string]: Comment } = {};
     const roots: Comment[] = [];
-
+  
     comments.forEach(comment => {
       commentMap[comment.id] = { ...comment, replies: [] };
     });
-
+  
     comments.forEach(comment => {
       if (comment.parent_comment_id) {
         const parent = commentMap[comment.parent_comment_id];
@@ -189,10 +192,10 @@ export default function PostModal({
         roots.push(commentMap[comment.id]);
       }
     });
-
+  
     return roots;
   };
-
+  
   const handleComment = async (e: React.FormEvent, parentCommentId?: string | null) => {
     e.preventDefault();
     if (!currentUser || !newComment.trim()) return;
@@ -232,7 +235,7 @@ export default function PostModal({
       };
   
       setComments(prevComments => {
-        const updatedComments = [...prevComments];
+        const updatedComments = prevComments.map(c => ({ ...c, replies: c.replies || [] }));
         if (parentCommentId) {
           const addReply = (comments: Comment[]): Comment[] => 
             comments.map(c => {
@@ -263,6 +266,7 @@ export default function PostModal({
       console.error('Error adding comment:', error);
     }
   };
+  
   
   
   
@@ -316,14 +320,29 @@ export default function PostModal({
         .eq('id', commentId)
         .select()
         .single();
-
+  
       if (error) throw error;
-
+  
+      setComments(prevComments => {
+        const updateComment = (comments: Comment[]): Comment[] =>
+          comments.map(c => {
+            if (c.id === commentId) {
+              return { ...c, content: newContent };
+            }
+            if (c.replies && c.replies.length > 0) {
+              return { ...c, replies: updateComment(c.replies) };
+            }
+            return c;
+          });
+        return updateComment(prevComments);
+      });
+  
       setEditingCommentId(null);
     } catch (error) {
       console.error('Error editing comment:', error);
     }
   };
+  
 
   const handleEditPost = async () => {
     try {
@@ -542,25 +561,25 @@ export default function PostModal({
     depth
   }: CommentItemProps) {
     const [editedContent, setEditedContent] = useState(comment.content);
-
-    const handleEdit = () => {
-    onEdit(comment.id, editedContent);
-    setEditingCommentId(null);
-  };
   
-  return (
-    <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
-      <Avatar 
-        src={comment.user?.avatar_url ?? DEFAULT_AVATAR} 
-        alt={comment.user?.username ?? 'Utilisateur inconnu'} 
-        className="w-8 h-8" 
-      />
-      <div className="flex-grow">
-        <div className="flex items-center space-x-2">
-          <span className="font-semibold text-white">{comment.user?.username ?? 'Utilisateur inconnu'}</span>
-          <span className="text-sm text-gray-400">
-            · {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: fr })}
-          </span>
+    const handleEdit = () => {
+      onEdit(comment.id, editedContent);
+      setEditingCommentId(null);
+    };
+  
+    return (
+      <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
+        <Avatar 
+          src={comment.user?.avatar_url ?? DEFAULT_AVATAR} 
+          alt={comment.user?.username ?? 'Utilisateur inconnu'} 
+          className="w-8 h-8" 
+        />
+        <div className="flex-grow">
+          <div className="flex items-center space-x-2">
+            <span className="font-semibold text-white">{comment.user?.username ?? 'Utilisateur inconnu'}</span>
+            <span className="text-sm text-gray-400">
+              · {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: fr })}
+            </span>
           </div>
           {editingCommentId === comment.id ? (
             <div>
@@ -597,7 +616,7 @@ export default function PostModal({
               </>
             )}
           </div>
-          {comment.replies && comment.replies.map(reply => (
+          {comment.replies && comment.replies.length > 0 && comment.replies.map((reply: Comment) => (
             <CommentItem
               key={reply.id}
               comment={reply}
