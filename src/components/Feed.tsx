@@ -43,13 +43,14 @@ interface Comment {
   user_id: string;
   content: string;
   created_at: string;
-  parent_comment_id?: string | null;
-  user?: {
+  parent_comment_id: string | null;
+  user: {
     username: string;
     avatar_url: string;
   };
-  replies?: Comment[];
+  replies: Comment[];
 }
+
 
 export default function Feed() {
   const [posts, setPosts] = useState<Post[]>([])

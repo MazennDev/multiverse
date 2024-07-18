@@ -130,24 +130,44 @@ export default function PostModal({
 
   const fetchComments = async () => {
     try {
+      // Step 1: Fetch comments
       const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
-        .select('*, user:profiles(username, avatar_url)')
+        .select('*')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
   
       if (commentsError) throw commentsError;
   
-      const commentsWithReplies = commentsData.map(comment => ({
+      // Step 2: Fetch user data for all comments
+      const userIds = Array.from(new Set(commentsData.map(comment => comment.user_id)));
+      const { data: usersData, error: usersError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', userIds);
+  
+      if (usersError) throw usersError;
+  
+      // Create a map of user data for quick lookup
+      const userMap: { [key: string]: { username: string; avatar_url: string } } = {};
+      usersData.forEach(user => {
+        userMap[user.id] = {
+          username: user.username,
+          avatar_url: user.avatar_url,
+        };
+      });
+  
+      // Combine comment data with user data
+      const commentsWithUsers = commentsData.map(comment => ({
         ...comment,
-        user: comment.user || {
+        user: userMap[comment.user_id] || {
           username: 'Utilisateur inconnu',
           avatar_url: DEFAULT_AVATAR,
         },
         replies: [],
       }));
   
-      const commentTree = buildCommentTree(commentsWithReplies);
+      const commentTree = buildCommentTree(commentsWithUsers);
       setComments(commentTree);
     } catch (error) {
       console.error('Error fetching comments:', error);
@@ -199,20 +219,11 @@ export default function PostModal({
       if (commentError) throw commentError;
       if (!newCommentData) throw new Error('No data returned from insert operation');
   
-      // Step 2: Fetch the user data
-      const { data: userData, error: userError } = await supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('id', currentUser.id)
-        .single();
-  
-      if (userError) throw userError;
-  
       const commentWithUser: Comment = {
         ...newCommentData,
         user: {
-          username: userData?.username || currentUser.username || 'Utilisateur inconnu',
-          avatar_url: userData?.avatar_url || currentUser.avatar_url || DEFAULT_AVATAR,
+          username: currentUser.username || 'Utilisateur inconnu',
+          avatar_url: currentUser.avatar_url || DEFAULT_AVATAR,
         },
         replies: [],
       };
@@ -249,11 +260,6 @@ export default function PostModal({
       console.error('Error adding comment:', error);
     }
   };
-  
-  
-  
-  
-  
 
   const handleDeletePost = async () => {
     try {
