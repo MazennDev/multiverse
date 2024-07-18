@@ -426,7 +426,7 @@ export default function Feed() {
       }
       toast({
         title: "Succès",
-        description: "Votre post a été crée.",
+        description: "Votre post a été créé.",
       });
     } catch (error) {
       console.error('Error creating post:', error);
@@ -443,7 +443,7 @@ export default function Feed() {
   const handlePostOptions = (postId: string) => {
     setSelectedPostId(postId);
   }; 
-  
+
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewPostContent(e.target.value);
     if (textareaRef.current) {

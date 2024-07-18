@@ -18,6 +18,17 @@ interface PostModalProps {
   onPostEdited: (postId: string, newContent: string, newImageUrl: string | undefined) => void;
   isStandalone?: boolean;
 }
+interface CommentItemProps {
+  comment: Comment;
+  currentUser: User | null;
+  onReply: () => void;
+  onDelete: (commentId: string) => void;
+  onEdit: (commentId: string, newContent: string) => void;
+  setEditingCommentId: (id: string | null) => void;
+  editingCommentId: string | null;
+  depth: number;
+}
+
 
 const MAX_COMMENT_LENGTH = 1000;
 
@@ -175,41 +186,66 @@ export default function PostModal({
     return roots;
   };
 
-  const handleComment = async (e: React.FormEvent, parentCommentId?: string | null) => {
-    e.preventDefault();
-    if (!currentUser || !newComment.trim()) return;
-  
-    try {
-      const { data, error } = await supabase
-        .from('comments')
-        .insert({
-          post_id: postId,
-          user_id: currentUser.id,
-          content: newComment.trim(),
-          parent_comment_id: parentCommentId || null,
-        })
-        .select()
-        .single();
+// Add this function to your PostModal component
+const handleComment = async (e: React.FormEvent, parentCommentId?: string | null) => {
+  e.preventDefault();
+  if (!currentUser || !newComment.trim()) return;
 
-      if (error) throw error;
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .insert({
+        post_id: postId,
+        user_id: currentUser.id,
+        content: newComment.trim(),
+        parent_comment_id: parentCommentId || null,
+      })
+      .select()
+      .single();
 
-      setNewComment('');
-      setReplyingTo(null);
-      onCommentAdded(postId);
+    if (error) throw error;
 
-      // Update comment count
-      if (post) {
-        const updatedPost = { ...post, comment_count: (post.comment_count || 0) + 1 };
-        setPost(updatedPost);
-        await supabase
-          .from('posts')
-          .update({ comment_count: updatedPost.comment_count })
-          .eq('id', post.id);
+    const commentWithUser = {
+      ...data,
+      user: {
+        username: currentUser.username || 'Unknown User',
+        avatar_url: currentUser.avatar_url || DEFAULT_AVATAR,
+      },
+    };
+
+    setComments(prevComments => {
+      const updatedComments = [...prevComments];
+      if (parentCommentId) {
+        const addReply = (comments: Comment[]): Comment[] => 
+          comments.map(c => {
+            if (c.id === parentCommentId) {
+              return { ...c, replies: [...(c.replies || []), commentWithUser] };
+            }
+            if (c.replies && c.replies.length > 0) {
+              return { ...c, replies: addReply(c.replies) };
+            }
+            return c;
+          });
+        return addReply(updatedComments);
+      } else {
+        return [...updatedComments, commentWithUser];
       }
-    } catch (error) {
-      console.error('Error adding comment:', error);
+    });
+
+    setNewComment('');
+    setReplyingTo(null);
+    onCommentAdded(postId);
+
+    // Update comment count
+    if (post) {
+      const updatedPost = { ...post, comment_count: (post.comment_count || 0) + 1 };
+      setPost(updatedPost);
     }
-  };
+  } catch (error) {
+    console.error('Error adding comment:', error);
+  }
+};
+
 
   const handleDeletePost = async () => {
     try {
@@ -318,12 +354,14 @@ export default function PostModal({
 
   if (!post) return null;
 
+  const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3E%3Cpath d='M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z'/%3E%3C/svg%3E";
+
   return (
     <div className={`${isStandalone ? '' : 'fixed inset-0 bg-black bg-opacity-50'} flex items-center justify-center p-4 z-50`}>
       <div className={`bg-gray-800/30 backdrop-blur-sm rounded-xl ${isStandalone ? 'w-full max-w-2xl' : 'max-w-2xl w-full'} max-h-[90vh] overflow-y-auto`}>
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-white">Post</h2>
+            <h2 className="text-xl font-bold text-white">Publication</h2>
             <button onClick={onClose} className="text-gray-400 hover:text-white">
               <XMarkIcon className="w-6 h-6" />
             </button>
@@ -331,13 +369,13 @@ export default function PostModal({
           <div className="mb-4">
             <div className="flex items-start space-x-3">
               <Avatar 
-                src={post.user?.avatar_url ?? '/default-avatar.png'} 
-                alt={post.user?.username ?? 'Unknown User'} 
+                src={post.user?.avatar_url ?? DEFAULT_AVATAR} 
+                alt={post.user?.username ?? 'Utilisateur inconnu'} 
                 className="w-10 h-10" 
               />
               <div className="flex-grow">
                 <div className="flex items-center space-x-2">
-                  <span className="font-semibold text-white">{post.user?.username ?? 'Unknown User'}</span>
+                  <span className="font-semibold text-white">{post.user?.username ?? 'Utilisateur inconnu'}</span>
                   <span className="text-sm text-gray-400">
                     · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
                   </span>
@@ -367,20 +405,20 @@ export default function PostModal({
                           onClick={() => setEditingImage(null)} 
                           className="text-red-400 hover:text-red-500"
                         >
-                          Remove Image
+                          Supprimer l'image
                         </button>
                       )}
                     </div>
                     <div className="flex space-x-2 mt-2">
                       <Button onClick={handleEditPost} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
-                        Save
+                        Enregistrer
                       </Button>
                       <Button onClick={() => {
                         setIsEditingPost(false);
                         setEditingImage(null);
                         setEditingPostContent(post.content);
                       }} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-1 rounded-full text-sm">
-                        Cancel
+                        Annuler
                       </Button>
                     </div>
                   </div>
@@ -391,7 +429,7 @@ export default function PostModal({
                       <div className="mt-2 relative w-full h-64">
                         <Image 
                           src={post.image_url} 
-                          alt="Post image" 
+                          alt="Image de la publication" 
                           layout="fill"
                           objectFit="cover"
                           className="rounded-lg"
@@ -402,11 +440,11 @@ export default function PostModal({
                       <div className="flex space-x-2 mt-2">
                         <Button onClick={() => { setIsEditingPost(true); setEditingPostContent(post.content); }} className="text-yellow-400 hover:text-yellow-500 text-xs">
                           <PencilIcon className="w-4 h-4 mr-1" />
-                          Edit
+                          Modifier
                         </Button>
                         <Button onClick={handleDeletePost} className="text-red-400 hover:text-red-500 text-xs">
                           <TrashIcon className="w-4 h-4 mr-1" />
-                          Delete
+                          Supprimer
                         </Button>
                       </div>
                     )}
@@ -416,7 +454,7 @@ export default function PostModal({
             </div>
           </div>
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Comments</h3>
+            <h3 className="text-lg font-semibold text-white mb-2">Commentaires</h3>
             {comments.map((comment) => (
               <CommentItem
                 key={comment.id}
@@ -434,16 +472,16 @@ export default function PostModal({
           {currentUser && (
             <form onSubmit={(e) => handleComment(e, replyingTo)} className="mt-4">
               <div className="flex items-start space-x-3">
-              <Avatar 
-  src={currentUser?.avatar_url ?? ''} 
-  alt={currentUser?.username ?? 'User'} 
-  className="w-10 h-10" 
-/>
+                <Avatar 
+                  src={currentUser?.avatar_url ?? DEFAULT_AVATAR} 
+                  alt={currentUser?.username ?? 'Utilisateur'} 
+                  className="w-10 h-10" 
+                />
                 <div className="flex-grow">
                   <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value.slice(0, MAX_COMMENT_LENGTH))}
-                    placeholder={replyingTo ? "Write a reply..." : "What's on your mind?"}
+                    placeholder={replyingTo ? "Écrivez une réponse..." : "Que voulez-vous dire ?"}
                     className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={3}
                     maxLength={MAX_COMMENT_LENGTH}
@@ -456,11 +494,11 @@ export default function PostModal({
                           onClick={() => setReplyingTo(null)} 
                           className="mr-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-1 rounded-full text-sm"
                         >
-                          Cancel Reply
+                          Annuler la réponse
                         </Button>
                       )}
                       <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
-                        {replyingTo ? "Post Reply" : "Post Comment"}
+                        {replyingTo ? "Répondre" : "Commenter"}
                       </Button>
                     </div>
                   </div>
@@ -471,96 +509,85 @@ export default function PostModal({
         </div>
       </div>
     </div>
-  )
-}
-
-interface CommentItemProps {
-  comment: Comment;
-  currentUser: User | null;
-  onReply: () => void;
-  onDelete: (commentId: string) => void;
-  onEdit: (commentId: string, newContent: string) => void;
-  setEditingCommentId: (id: string | null) => void;
-  editingCommentId: string | null;
-  depth: number;
-}
-
-function CommentItem({ 
-  comment, 
-  currentUser, 
-  onReply, 
-  onDelete, 
-  onEdit,
-  setEditingCommentId,
-  editingCommentId,
-  depth
-}: CommentItemProps) {
-  const [editedContent, setEditedContent] = useState(comment.content);
-
-  const handleEdit = () => {
-    onEdit(comment.id, editedContent);
-    setEditingCommentId(null);
-  };
-
-  return (
-    <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
-      <Avatar src={comment.user.avatar_url} alt={comment.user.username} className="w-8 h-8" />
-      <div className="flex-grow">
-        <div className="flex items-center space-x-2">
-          <span className="font-semibold text-white">{comment.user.username}</span>
-          <span className="text-sm text-gray-400">
-            · {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: fr })}
-          </span>
-        </div>
-        {editingCommentId === comment.id ? (
-          <div>
-            <textarea
-              value={editedContent}
-              onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none mt-1"
-              rows={2}
-            />
-            <div className="flex space-x-2 mt-1">
-              <Button onClick={handleEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-full text-xs">
-                Save
-              </Button>
-              <Button onClick={() => setEditingCommentId(null)} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded-full text-xs">
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-gray-200">{comment.content}</p>
-        )}
-        <div className="flex space-x-2 mt-1">
-          <Button onClick={onReply} className="text-blue-400 hover:text-blue-500 text-xs">
-            Reply
-          </Button>
-          {currentUser && currentUser.id === comment.user_id && (
-            <>
-              <Button onClick={() => setEditingCommentId(comment.id)} className="text-yellow-400 hover:text-yellow-500 text-xs">
-                Edit
-              </Button>
-              <Button onClick={() => onDelete(comment.id)} className="text-red-400 hover:text-red-500 text-xs">
-                Delete
-              </Button>
-            </>
-          )}
-        </div>
-        {comment.replies && comment.replies.map(reply => (
-          <CommentItem
-            key={reply.id}
-            comment={reply}
-            currentUser={currentUser}
-            onReply={onReply}
-            onDelete={onDelete}
-            onEdit={onEdit}
-            setEditingCommentId={setEditingCommentId}
-            editingCommentId={editingCommentId}
-            depth={depth + 1}
-          />
-        ))}
-      </div>
-    </div>
   );
-}
+  
+  function CommentItem({ 
+    comment, 
+    currentUser, 
+    onReply, 
+    onDelete, 
+    onEdit,
+    setEditingCommentId,
+    editingCommentId,
+    depth
+  }: CommentItemProps) {
+    const [editedContent, setEditedContent] = useState(comment.content);
+  
+    const handleEdit = () => {
+      onEdit(comment.id, editedContent);
+      setEditingCommentId(null);
+    };
+  
+    return (
+      <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
+        <Avatar src={comment.user.avatar_url ?? DEFAULT_AVATAR} alt={comment.user.username} className="w-8 h-8" />
+        <div className="flex-grow">
+          <div className="flex items-center space-x-2">
+            <span className="font-semibold text-white">{comment.user.username}</span>
+            <span className="text-sm text-gray-400">
+              · {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: fr })}
+            </span>
+          </div>
+          {editingCommentId === comment.id ? (
+            <div>
+              <textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none mt-1"
+                rows={2}
+              />
+              <div className="flex space-x-2 mt-1">
+                <Button onClick={handleEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-full text-xs">
+                  Enregistrer
+                </Button>
+                <Button onClick={() => setEditingCommentId(null)} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded-full text-xs">
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-200">{comment.content}</p>
+          )}
+          <div className="flex space-x-2 mt-1">
+            <Button onClick={onReply} className="text-blue-400 hover:text-blue-500 text-xs">
+              Répondre
+            </Button>
+            {currentUser && currentUser.id === comment.user_id && (
+              <>
+                <Button onClick={() => setEditingCommentId(comment.id)} className="text-yellow-400 hover:text-yellow-500 text-xs">
+                  Modifier
+                </Button>
+                <Button onClick={() => onDelete(comment.id)} className="text-red-400 hover:text-red-500 text-xs">
+                  Supprimer
+                </Button>
+              </>
+            )}
+          </div>
+          {comment.replies && comment.replies.map(reply => (
+            <CommentItem
+              key={reply.id}
+              comment={reply}
+              currentUser={currentUser}
+              onReply={onReply}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              setEditingCommentId={setEditingCommentId}
+              editingCommentId={editingCommentId}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+}  
