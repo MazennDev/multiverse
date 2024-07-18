@@ -330,10 +330,14 @@ export default function PostModal({
           </div>
           <div className="mb-4">
             <div className="flex items-start space-x-3">
-              <Avatar src={post.user.avatar_url} alt={post.user.username} className="w-10 h-10" />
+              <Avatar 
+                src={post.user?.avatar_url ?? '/default-avatar.png'} 
+                alt={post.user?.username ?? 'Unknown User'} 
+                className="w-10 h-10" 
+              />
               <div className="flex-grow">
                 <div className="flex items-center space-x-2">
-                  <span className="font-semibold text-white">{post.user.username}</span>
+                  <span className="font-semibold text-white">{post.user?.username ?? 'Unknown User'}</span>
                   <span className="text-sm text-gray-400">
                     · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
                   </span>
@@ -467,7 +471,7 @@ export default function PostModal({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 interface CommentItemProps {

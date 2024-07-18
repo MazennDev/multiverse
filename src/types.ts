@@ -9,15 +9,16 @@ export interface Post {
     id: string;
     user_id: string;
     content: string;
-    image_url?: string | undefined;
+    image_url?: string;
     created_at: string;
     likes: number;
     comment_count: number;
-    user: {
+    user?: {
       username: string;
       avatar_url: string;
     };
   }
+  
   
   
   
