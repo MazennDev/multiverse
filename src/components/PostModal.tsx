@@ -132,34 +132,42 @@ export default function PostModal({
     try {
       const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
-        .select('*, user:profiles(username, avatar_url)')
+        .select('*')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
-
+  
       if (commentsError) throw commentsError;
-
+  
       const commentsWithUsers = await Promise.all(commentsData.map(async (comment) => {
         const { data: userData, error: userError } = await supabase
           .from('profiles')
           .select('username, avatar_url')
           .eq('id', comment.user_id)
           .single();
-
-        if (userError) throw userError;
-
+  
+        if (userError) {
+          console.error('Error fetching user data:', userError);
+          return {
+            ...comment,
+            user: {
+              username: 'Utilisateur inconnu',
+              avatar_url: DEFAULT_AVATAR,
+            },
+          };
+        }
+  
         return {
           ...comment,
           user: userData,
-          replies: []
         };
       }));
-
-      const commentTree = buildCommentTree(commentsWithUsers);
-      setComments(commentTree);
+  
+      setComments(commentsWithUsers);
     } catch (error) {
       console.error('Error fetching comments:', error);
     }
   };
+  
 
   const buildCommentTree = (comments: Comment[]): Comment[] => {
     const commentMap: { [key: string]: Comment } = {};
@@ -190,7 +198,8 @@ export default function PostModal({
     if (!currentUser || !newComment.trim()) return;
   
     try {
-      const { data: newCommentData, error } = await supabase
+      // Step 1: Insert the comment
+      const { data: newCommentData, error: commentError } = await supabase
         .from('comments')
         .insert({
           post_id: postId,
@@ -198,18 +207,26 @@ export default function PostModal({
           content: newComment.trim(),
           parent_comment_id: parentCommentId || null,
         })
-        .select('*, user:profiles(username, avatar_url)')
+        .select()
         .single();
   
-      if (error) throw error;
-  
+      if (commentError) throw commentError;
       if (!newCommentData) throw new Error('No data returned from insert operation');
+  
+      // Step 2: Fetch the user data
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', currentUser.id)
+        .single();
+  
+      if (userError) throw userError;
   
       const commentWithUser: Comment = {
         ...newCommentData,
-        user: newCommentData.user || {
-          username: currentUser.username || 'Utilisateur inconnu',
-          avatar_url: currentUser.avatar_url || DEFAULT_AVATAR,
+        user: {
+          username: userData?.username || currentUser.username || 'Utilisateur inconnu',
+          avatar_url: userData?.avatar_url || currentUser.avatar_url || DEFAULT_AVATAR,
         },
         replies: [],
       };
@@ -231,11 +248,6 @@ export default function PostModal({
         } else {
           return [...updatedComments, commentWithUser];
         }
-
-        console.log('Current user:', currentUser);
-        console.log('New comment data:', newCommentData);
-        console.log('Comment with user:', commentWithUser);
-
       });
   
       setNewComment('');
@@ -251,6 +263,7 @@ export default function PostModal({
       console.error('Error adding comment:', error);
     }
   };
+  
   
   
 
