@@ -14,6 +14,8 @@ import { toast } from '@/components/ui/use-toast'
 import { PhotoIcon, HeartIcon, ChatBubbleLeftIcon, ShareIcon } from '@heroicons/react/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid'
 import PostModal from './PostModal'
+import Image from 'next/image';
+import { EllipsisHorizontalIcon } from '@heroicons/react/24/outline';
 
 interface User extends SupabaseUser {
   username?: string
@@ -271,47 +273,52 @@ export default function Feed() {
     }
   }
   const handleLike = async (postId: string) => {
-  if (!currentUser) return;
-  const isLiked = likedPosts.has(postId);
-  try {
-    if (isLiked) {
+    if (!currentUser) return;
+    const isLiked = likedPosts.has(postId);
+    try {
+      if (isLiked) {
+        await supabase
+          .from('likes')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('post_id', postId);
+        setLikedPosts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(postId);
+          return newSet;
+        });
+      } else {
+        const { error } = await supabase
+          .from('likes')
+          .insert({ user_id: currentUser.id, post_id: postId });
+        if (error && error.code === '23505') { // Unique constraint violation
+          console.log('Post already liked');
+        } else if (error) {
+          throw error;
+        } else {
+          setLikedPosts(prev => new Set(prev).add(postId));
+        }
+      }
+      // Update likes count
+      const { data } = await supabase
+        .from('posts')
+        .select('likes')
+        .eq('id', postId)
+        .single();
+      const newLikesCount = isLiked ? (data?.likes ?? 1) - 1 : (data?.likes ?? 0) + 1;
       await supabase
-        .from('likes')
-        .delete()
-        .eq('user_id', currentUser.id)
-        .eq('post_id', postId);
-      setLikedPosts(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(postId);
-        return newSet;
-      });
+        .from('posts')
+        .update({ likes: newLikesCount })
+        .eq('id', postId);
       setPosts(prevPosts =>
         prevPosts.map(post =>
-          post.id === postId ? { ...post, likes: Math.max(0, post.likes - 1) } : post
+          post.id === postId ? { ...post, likes: newLikesCount } : post
         )
       );
-    } else {
-      await supabase
-        .from('likes')
-        .insert({ user_id: currentUser.id, post_id: postId });
-      setLikedPosts(prev => new Set(prev).add(postId));
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post.id === postId ? { ...post, likes: post.likes + 1 } : post
-        )
-      );
+    } catch (error) {
+      console.error('Error handling like:', error);
     }
-  } catch (error) {
-    console.error('Error handling like:', error);
-    // Revert the optimistic update if there's an error
-    fetchPosts();
-    fetchLikedPosts();
-  }
-};
-
-  
-  
-  
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -423,6 +430,10 @@ export default function Feed() {
     }
   }
 
+  const handlePostOptions = (postId: string) => {
+    setSelectedPostId(postId);
+  };  
+
   return (
     <div className="max-w-2xl mx-auto">
       {currentUser && (
@@ -484,93 +495,109 @@ export default function Feed() {
         </form>
       )}
       {loading ? (
-        <div className="flex justify-center items-center h-24">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {posts.map((post) => (
-            <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 shadow-md">
-              <div className="flex items-start space-x-3">
-                <Avatar
-                  src={getAvatarUrl(post.user.avatar_url)}
-                  alt={post.user.username}
-                  className="w-10 h-10"
-                />
-                <div className="flex-grow">
-                  <div className="flex items-center space-x-2">
-                    <Link href={`/profile/${post.user.username}`}>
-                      <span className="font-semibold text-white hover:underline">{post.user.username}</span>
-                    </Link>
-                    <span className="text-sm text-gray-400">
-                      · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
-                    </span>
-                  </div>
-                  <p className="text-gray-200 mt-1">{post.content}</p>
-                  {post.image_url && (
-                    <img src={post.image_url} alt="Post image" className="mt-2 rounded-lg max-h-96 w-full object-cover" />
-                  )}
-                  <div className="flex items-center space-x-4 mt-3">
-                    <button
-                      onClick={() => handleLike(post.id)}
-                      className="flex items-center space-x-1 text-gray-400 hover:text-red-500"
-                    >
-                      {likedPosts.has(post.id) ? (
-                        <HeartSolidIcon className="w-5 h-5 text-red-500" />
-                      ) : (
-                        <HeartIcon className="w-5 h-5" />
-                      )}
-                      <span>{post.likes}</span>
-                    </button>
-                    <button 
-                      onClick={() => handleComment(post.id)}
-                      className="flex items-center space-x-1 text-gray-400 hover:text-blue-500"
-                    >
-                      <ChatBubbleLeftIcon className="w-5 h-5" />
-                      <span>{post.comment_count || 0}</span>
-                    </button>
-                    <button 
-                      onClick={() => handleShare(post.id)}
-                      className="flex items-center space-x-1 text-gray-400 hover:text-green-500"
-                    >
-                      <ShareIcon className="w-5 h-5" />
-                    </button>
-                  </div>
+      <div className="flex justify-center items-center h-24">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    ) : (
+      <div className="space-y-4">
+        {posts.map((post) => (
+          <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 shadow-md relative">
+            {currentUser && currentUser.id === post.user_id && (
+              <div className="absolute top-2 right-2">
+                <button className="text-gray-400 hover:text-white" onClick={() => handlePostOptions(post.id)}>
+                  <EllipsisHorizontalIcon className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+            <div className="flex items-start space-x-3">
+              <Avatar
+                src={getAvatarUrl(post.user.avatar_url)}
+                alt={post.user.username}
+                className="w-10 h-10"
+              />
+              <div className="flex-grow">
+                <div className="flex items-center space-x-2">
+                  <Link href={`/profile/${post.user.username}`}>
+                    <span className="font-semibold text-white hover:underline">{post.user.username}</span>
+                  </Link>
+                  <span className="text-sm text-gray-400">
+                    · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
+                  </span>
+                </div>
+                <p className="text-gray-200 mt-1">{post.content}</p>
+                {post.image_url && (
+  <div className="mt-2 relative w-full h-64">
+    <Image 
+      src={post.image_url} 
+      alt="Post image" 
+      layout="fill"
+      objectFit="cover"
+      className="rounded-lg"
+    />
+  </div>
+)}
+
+                <div className="flex items-center space-x-4 mt-3">
+                  <button
+                    onClick={() => handleLike(post.id)}
+                    className="flex items-center space-x-1 text-gray-400 hover:text-red-500"
+                  >
+                    {likedPosts.has(post.id) ? (
+                      <HeartSolidIcon className="w-5 h-5 text-red-500" />
+                    ) : (
+                      <HeartIcon className="w-5 h-5" />
+                    )}
+                    <span>{post.likes}</span>
+                  </button>
+                  <button 
+                    onClick={() => handleComment(post.id)}
+                    className="flex items-center space-x-1 text-gray-400 hover:text-blue-500"
+                  >
+                    <ChatBubbleLeftIcon className="w-5 h-5" />
+                    <span>{post.comment_count || 0}</span>
+                  </button>
+                  <button 
+                    onClick={() => handleShare(post.id)}
+                    className="flex items-center space-x-1 text-gray-400 hover:text-green-500"
+                  >
+                    <ShareIcon className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-      {selectedPostId && (
-  <PostModal 
-    postId={selectedPostId} 
-    onClose={() => setSelectedPostId(null)}
-    currentUser={currentUser}
-    onCommentAdded={(postId) => {
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === postId 
-            ? { ...post, comment_count: (post.comment_count || 0) + 1 } 
-            : post
-        )
-      )
-    }}
-    onPostDeleted={(postId) => {
-      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId))
-      setSelectedPostId(null)
-    }}
-    onPostEdited={(postId, newContent) => {
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === postId 
-            ? { ...post, content: newContent } 
-            : post
-        )
-      )
-    }}
-  />
-)}
-    </div>
-  )
+          </div>
+        ))}
+      </div>
+    )}
+    {selectedPostId && (
+      <PostModal 
+        postId={selectedPostId} 
+        onClose={() => setSelectedPostId(null)}
+        currentUser={currentUser}
+        onCommentAdded={(postId) => {
+          setPosts(prevPosts => 
+            prevPosts.map(post => 
+              post.id === postId 
+                ? { ...post, comment_count: (post.comment_count || 0) + 1 } 
+                : post
+            )
+          )
+        }}
+        onPostDeleted={(postId) => {
+          setPosts(prevPosts => prevPosts.filter(post => post.id !== postId))
+          setSelectedPostId(null)
+        }}
+        onPostEdited={(postId, newContent, newImageUrl) => {
+          setPosts(prevPosts => 
+            prevPosts.map(post => 
+              post.id === postId 
+                ? { ...post, content: newContent, image_url: newImageUrl || undefined } 
+                : post
+            )
+          );
+        }}        
+      />
+    )}
+  </div>
+);
 }

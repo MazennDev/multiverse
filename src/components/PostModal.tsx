@@ -4,7 +4,7 @@ import { Avatar } from './ui/avatar';
 import { Button } from './ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { HeartIcon, ChatBubbleLeftIcon, ShareIcon, XMarkIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { HeartIcon, ChatBubbleLeftIcon, ShareIcon, XMarkIcon, PencilIcon, TrashIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import { Post, Comment, User } from '../types';
 import Image from 'next/image';
@@ -15,7 +15,7 @@ interface PostModalProps {
   currentUser: User | null;
   onCommentAdded: (postId: string) => void;
   onPostDeleted: (postId: string) => void;
-  onPostEdited: (postId: string, newContent: string) => void;
+  onPostEdited: (postId: string, newContent: string, newImageUrl: string | undefined) => void;
   isStandalone?: boolean;
 }
 
@@ -37,6 +37,7 @@ export default function PostModal({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingPostContent, setEditingPostContent] = useState('');
   const [isEditingPost, setIsEditingPost] = useState(false);
+  const [editingImage, setEditingImage] = useState<File | null>(null);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export default function PostModal({
       console.error('Error fetching post:', error);
     } else {
       setPost(data);
+      setEditingPostContent(data.content);
     }
   };
 
@@ -88,10 +90,10 @@ export default function PostModal({
     }
   };
 
-  const handleComment = async (e: React.FormEvent, parentCommentId?: string) => {
+  const handleComment = async (e: React.FormEvent, parentCommentId?: string | null) => {
     e.preventDefault();
     if (!currentUser || !newComment.trim()) return;
-
+  
     try {
       const { data, error } = await supabase
         .from('comments')
@@ -99,7 +101,7 @@ export default function PostModal({
           post_id: postId,
           user_id: currentUser.id,
           content: newComment.trim(),
-          parent_comment_id: parentCommentId,
+          parent_comment_id: parentCommentId || undefined,
         })
         .select()
         .single();
@@ -128,6 +130,22 @@ export default function PostModal({
       console.error('Error adding comment:', error);
     }
   };
+
+  const handleDeletePost = async () => {
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+  
+      if (error) throw error;
+  
+      onPostDeleted(postId);
+      onClose();
+    } catch (error) {
+      console.error('Error deleting post:', error);
+    }
+  };  
 
   const handleDeleteComment = async (commentId: string) => {
     try {
@@ -172,38 +190,50 @@ export default function PostModal({
     }
   };
 
-  const handleDeletePost = async () => {
-    try {
-      const { error } = await supabase
-        .from('posts')
-        .delete()
-        .eq('id', postId);
-
-      if (error) throw error;
-
-      onPostDeleted(postId);
-      onClose();
-    } catch (error) {
-      console.error('Error deleting post:', error);
-    }
-  };
-
   const handleEditPost = async () => {
     try {
+      let newImageUrl: string | undefined = post?.image_url;
+  
+      if (editingImage) {
+        const { data, error: uploadError } = await supabase.storage
+          .from('post-images')
+          .upload(`${currentUser!.id}/${Date.now()}-${editingImage.name}`, editingImage);
+  
+        if (uploadError) throw uploadError;
+  
+        const { data: { publicUrl } } = supabase.storage
+          .from('post-images')
+          .getPublicUrl(data.path);
+  
+        newImageUrl = publicUrl;
+      } else if (editingImage === null) {
+        newImageUrl = undefined;
+      }
+  
       const { data, error } = await supabase
         .from('posts')
-        .update({ content: editingPostContent })
+        .update({ 
+          content: editingPostContent,
+          image_url: newImageUrl
+        })
         .eq('id', postId)
         .select()
         .single();
-
+  
       if (error) throw error;
-
-      setPost(prevPost => prevPost ? { ...prevPost, content: editingPostContent } : null);
+  
+      setPost(prevPost => prevPost ? { ...prevPost, content: editingPostContent, image_url: newImageUrl } : null);
       setIsEditingPost(false);
-      onPostEdited(postId, editingPostContent);
+      setEditingImage(null);
+      onPostEdited(postId, editingPostContent, newImageUrl);
     } catch (error) {
       console.error('Error editing post:', error);
+    }
+  };  
+  
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setEditingImage(e.target.files[0]);
     }
   };
 
@@ -237,32 +267,67 @@ export default function PostModal({
                       className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none mt-2"
                       rows={3}
                     />
+                    <div className="flex items-center space-x-2 mt-2">
+                      <input
+                        type="file"
+                        id="post-image"
+                        className="hidden"
+                        onChange={handleImageChange}
+                        accept="image/*"
+                      />
+                      <label htmlFor="post-image" className="cursor-pointer text-blue-400 hover:text-blue-500">
+                        <PhotoIcon className="w-6 h-6" />
+                      </label>
+                      {editingImage && <span className="text-sm text-gray-400">{editingImage.name}</span>}
+                      {post.image_url && !editingImage && (
+                        <button 
+                          onClick={() => setEditingImage(null)} 
+                          className="text-red-400 hover:text-red-500"
+                        >
+                          Remove Image
+                        </button>
+                      )}
+                    </div>
                     <div className="flex space-x-2 mt-2">
                       <Button onClick={handleEditPost} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
                         Save
                       </Button>
-                      <Button onClick={() => setIsEditingPost(false)} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-1 rounded-full text-sm">
+                      <Button onClick={() => {
+                        setIsEditingPost(false);
+                        setEditingImage(null);
+                        setEditingPostContent(post.content);
+                      }} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-1 rounded-full text-sm">
                         Cancel
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-gray-200 mt-1">{post.content}</p>
-                )}
-                {post.image_url && (
-                  <Image src={post.image_url} alt="Post image" width={500} height={300} className="mt-2 rounded-lg object-cover" />
-                )}
-                {currentUser && currentUser.id === post.user_id && !isEditingPost && (
-                  <div className="flex space-x-2 mt-2">
-                    <Button onClick={() => { setIsEditingPost(true); setEditingPostContent(post.content); }} className="text-yellow-400 hover:text-yellow-500 text-xs">
-                      <PencilIcon className="w-4 h-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button onClick={handleDeletePost} className="text-red-400 hover:text-red-500 text-xs">
-                      <TrashIcon className="w-4 h-4 mr-1" />
-                      Delete
-                    </Button>
-                  </div>
+                  <>
+                    <p className="text-gray-200 mt-1">{post.content}</p>
+                    {post.image_url && (
+                      <div className="mt-2 relative w-full h-64">
+                        <Image 
+                          src={post.image_url} 
+                          alt="Post image" 
+                          layout="fill"
+                          objectFit="cover"
+                          className="rounded-lg"
+                        />
+                      </div>
+                    )}
+                    {currentUser && currentUser.id === post.user_id && (
+                      <div className="flex space-x-2 mt-2">
+                        <Button onClick={() => { setIsEditingPost(true); setEditingPostContent(post.content); }} className="text-yellow-400 hover:text-yellow-500 text-xs">
+                          <PencilIcon className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button onClick={handleDeletePost} className="text-red-400 hover:text-red-500 text-xs">
+                          <TrashIcon className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -283,20 +348,30 @@ export default function PostModal({
             ))}
           </div>
           {currentUser && (
-            <form onSubmit={(e) => handleComment(e)} className="mt-4">
+            <form onSubmit={(e) => handleComment(e, replyingTo)} className="mt-4">
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value.slice(0, MAX_COMMENT_LENGTH))}
-                placeholder="Add a comment..."
+                placeholder={replyingTo ? "Write a reply..." : "Add a comment..."}
                 className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none"
                 rows={3}
                 maxLength={MAX_COMMENT_LENGTH}
               />
               <div className="flex justify-between items-center mt-2">
                 <span className="text-sm text-gray-400">{newComment.length}/{MAX_COMMENT_LENGTH}</span>
-                <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
-                  Post Comment
-                </Button>
+                <div>
+                  {replyingTo && (
+                    <Button 
+                      onClick={() => setReplyingTo(null)} 
+                      className="mr-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-1 rounded-full text-sm"
+                    >
+                      Cancel Reply
+                    </Button>
+                  )}
+                  <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
+                    {replyingTo ? "Post Reply" : "Post Comment"}
+                  </Button>
+                </div>
               </div>
             </form>
           )}
