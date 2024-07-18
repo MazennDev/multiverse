@@ -442,8 +442,8 @@ export default function Feed() {
 
   const handlePostOptions = (postId: string) => {
     setSelectedPostId(postId);
-  };  
-
+  }; 
+  
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewPostContent(e.target.value);
     if (textareaRef.current) {
@@ -452,49 +452,61 @@ export default function Feed() {
     }
   };
 
+  
   return (
     <div className="max-w-2xl mx-auto">
       {currentUser && (
-        <form onSubmit={createPost} className="mb-6">
-          <div className="flex items-start space-x-3">
-            <Avatar src={currentUser.avatar_url ?? '/default-avatar.png'} alt={currentUser.username ?? 'User'} className="w-10 h-10" />
+        <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
+          <div className="flex items-start space-x-4">
+            <Avatar 
+              src={currentUser.avatar_url || '/default-avatar.png'} 
+              alt={currentUser.username || 'User'} 
+              className="w-10 h-10" 
+            />
             <div className="flex-grow">
               <textarea
                 ref={textareaRef}
                 value={newPostContent}
                 onChange={handleTextareaChange}
-                placeholder="What's on your mind?"
-                className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
+                placeholder="Quoi de neuf ?"
+                className="w-full p-2 bg-transparent text-white resize-none overflow-hidden focus:outline-none"
+                rows={1}
+                style={{minHeight: '2.5rem'}}
                 maxLength={MAX_POST_LENGTH}
               />
               {selectedImage && (
-                <div className="relative mt-2">
-                  <Image src={URL.createObjectURL(selectedImage)} alt="Selected image" layout="responsive" width={100} height={100} className="rounded-lg" />
-                  <button
-                    type="button"
-                    onClick={() => setSelectedImage(null)}
-                    className="absolute top-0 right-0 mt-2 mr-2 bg-red-500 text-white rounded-full p-1"
-                  >
-                    <span className="sr-only">Remove image</span>
-                    ✕
-                  </button>
+                <div className="mt-2">
+                  <img
+                    src={URL.createObjectURL(selectedImage)}
+                    alt="Selected image"
+                    className="max-h-40 rounded-lg object-cover"
+                  />
                 </div>
               )}
               <div className="flex justify-between items-center mt-2">
+                <span className="text-sm text-gray-400">
+                  {newPostContent.length}/{MAX_POST_LENGTH}
+                </span>
                 <input
                   type="file"
-                  ref={imageInputRef}
+                  accept="image/*"
                   onChange={handleImageSelect}
                   className="hidden"
-                  accept="image/*"
+                  ref={imageInputRef}
                 />
-                <label htmlFor="image-upload" className="cursor-pointer text-blue-400 hover:text-blue-500">
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="text-gray-400 hover:text-white"
+                >
                   <PhotoIcon className="w-6 h-6" />
-                  <span className="sr-only">Upload image</span>
-                </label>
-                <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm" disabled={creatingPost}>
-                  {creatingPost ? 'Posting...' : 'Post'}
+                </button>
+                <Button
+                  type="submit"
+                  disabled={creatingPost || (!newPostContent.trim() && !selectedImage)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm"
+                >
+                  {creatingPost ? 'Publication...' : 'Publier'}
                 </Button>
               </div>
             </div>
@@ -508,12 +520,25 @@ export default function Feed() {
       ) : (
         <div className="space-y-4">
           {posts.map((post) => (
-            <div key={post.id} className="bg-gray-800 p-4 rounded-lg shadow-md">
+            <div key={post.id} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 shadow-md relative">
+              {currentUser && currentUser.id === post.user_id && (
+                <div className="absolute top-2 right-2">
+                  <button className="text-gray-400 hover:text-white" onClick={() => handlePostOptions(post.id)}>
+                    <EllipsisHorizontalIcon className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
               <div className="flex items-start space-x-3">
-                <Avatar src={post.user.avatar_url ?? '/default-avatar.png'} alt={post.user.username ?? 'User'} className="w-10 h-10" />
+                <Avatar
+                  src={getAvatarUrl(post.user?.avatar_url)}
+                  alt={post.user?.username || 'User'}
+                  className="w-10 h-10"
+                />
                 <div className="flex-grow">
                   <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-white">{post.user.username}</span>
+                    <Link href={`/profile/${post.user?.username}`}>
+                      <span className="font-semibold text-white hover:underline">{post.user?.username}</span>
+                    </Link>
                     <span className="text-sm text-gray-400">
                       · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: fr })}
                     </span>
@@ -530,20 +555,29 @@ export default function Feed() {
                       />
                     </div>
                   )}
-                  <div className="flex space-x-4 mt-2">
-                    <button onClick={() => handleLike(post.id)} className="flex items-center space-x-1 text-gray-400 hover:text-red-500">
+                  <div className="flex items-center space-x-4 mt-3">
+                    <button
+                      onClick={() => handleLike(post.id)}
+                      className="flex items-center space-x-1 text-gray-400 hover:text-red-500"
+                    >
                       {likedPosts.has(post.id) ? (
-                        <HeartSolidIcon className="w-5 h-5" />
+                        <HeartSolidIcon className="w-5 h-5 text-red-500" />
                       ) : (
                         <HeartIcon className="w-5 h-5" />
                       )}
                       <span>{post.likes}</span>
                     </button>
-                    <button onClick={() => handleComment(post.id)} className="flex items-center space-x-1 text-gray-400 hover:text-blue-500">
+                    <button 
+                      onClick={() => handleComment(post.id)}
+                      className="flex items-center space-x-1 text-gray-400 hover:text-blue-500"
+                    >
                       <ChatBubbleLeftIcon className="w-5 h-5" />
-                      <span>{post.comment_count}</span>
+                      <span>{post.comment_count || 0}</span>
                     </button>
-                    <button onClick={() => handleShare(post.id)} className="flex items-center space-x-1 text-gray-400 hover:text-green-500">
+                    <button 
+                      onClick={() => handleShare(post.id)}
+                      className="flex items-center space-x-1 text-gray-400 hover:text-green-500"
+                    >
                       <ShareIcon className="w-5 h-5" />
                     </button>
                   </div>
@@ -568,15 +602,18 @@ export default function Feed() {
             )
           }}
           onPostDeleted={(postId) => {
-            setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+            setPosts(prevPosts => prevPosts.filter(post => post.id !== postId))
+            setSelectedPostId(null)
           }}
           onPostEdited={(postId, newContent, newImageUrl) => {
-            setPosts(prevPosts =>
-              prevPosts.map(post =>
-                post.id === postId ? { ...post, content: newContent, image_url: newImageUrl } : post
+            setPosts(prevPosts => 
+              prevPosts.map(post => 
+                post.id === postId 
+                  ? { ...post, content: newContent, image_url: newImageUrl || undefined } 
+                  : post
               )
             );
-          }}
+          }}        
         />
       )}
     </div>
