@@ -132,7 +132,7 @@ export default function PostModal({
     try {
       const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
-        .select('*')
+        .select('*, user:profiles(username, avatar_url)')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
 
@@ -190,7 +190,7 @@ export default function PostModal({
     if (!currentUser || !newComment.trim()) return;
   
     try {
-      const { data, error } = await supabase
+      const { data: newCommentData, error } = await supabase
         .from('comments')
         .insert({
           post_id: postId,
@@ -198,14 +198,16 @@ export default function PostModal({
           content: newComment.trim(),
           parent_comment_id: parentCommentId || null,
         })
-        .select()
+        .select('*, user:profiles(username, avatar_url)')
         .single();
   
       if (error) throw error;
   
+      if (!newCommentData) throw new Error('No data returned from insert operation');
+  
       const commentWithUser: Comment = {
-        ...data,
-        user: {
+        ...newCommentData,
+        user: newCommentData.user || {
           username: currentUser.username || 'Utilisateur inconnu',
           avatar_url: currentUser.avatar_url || DEFAULT_AVATAR,
         },
@@ -229,6 +231,11 @@ export default function PostModal({
         } else {
           return [...updatedComments, commentWithUser];
         }
+
+        console.log('Current user:', currentUser);
+        console.log('New comment data:', newCommentData);
+        console.log('Comment with user:', commentWithUser);
+
       });
   
       setNewComment('');
@@ -244,6 +251,7 @@ export default function PostModal({
       console.error('Error adding comment:', error);
     }
   };
+  
   
 
   const handleDeletePost = async () => {
@@ -521,21 +529,25 @@ export default function PostModal({
     depth
   }: CommentItemProps) {
     const [editedContent, setEditedContent] = useState(comment.content);
-  
+
     const handleEdit = () => {
-      onEdit(comment.id, editedContent);
-      setEditingCommentId(null);
-    };
+    onEdit(comment.id, editedContent);
+    setEditingCommentId(null);
+  };
   
-    return (
-      <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
-        <Avatar src={comment.user.avatar_url ?? DEFAULT_AVATAR} alt={comment.user.username ?? 'Utilisateur inconnu'} className="w-8 h-8" />
-        <div className="flex-grow">
-          <div className="flex items-center space-x-2">
-            <span className="font-semibold text-white">{comment.user.username}</span>
-            <span className="text-sm text-gray-400">
-              · {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: fr })}
-            </span>
+  return (
+    <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
+      <Avatar 
+        src={comment.user?.avatar_url ?? DEFAULT_AVATAR} 
+        alt={comment.user?.username ?? 'Utilisateur inconnu'} 
+        className="w-8 h-8" 
+      />
+      <div className="flex-grow">
+        <div className="flex items-center space-x-2">
+          <span className="font-semibold text-white">{comment.user?.username ?? 'Utilisateur inconnu'}</span>
+          <span className="text-sm text-gray-400">
+            · {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: fr })}
+          </span>
           </div>
           {editingCommentId === comment.id ? (
             <div>

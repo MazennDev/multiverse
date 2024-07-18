@@ -18,8 +18,9 @@ import Image from 'next/image';
 import { EllipsisHorizontalIcon } from '@heroicons/react/24/outline';
 
 interface User extends SupabaseUser {
-  username?: string
-  avatar_url?: string
+  id: string;
+  username?: string;
+  avatar_url?: string;
 }
 
 interface Post {
@@ -43,13 +44,12 @@ interface Comment {
   content: string;
   created_at: string;
   parent_comment_id?: string | null;
-  user: {
+  user?: {
     username: string;
     avatar_url: string;
   };
   replies: Comment[];
 }
-
 
 export default function Feed() {
   const [posts, setPosts] = useState<Post[]>([])
