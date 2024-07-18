@@ -29,7 +29,6 @@ interface CommentItemProps {
   depth: number;
 }
 
-
 const MAX_COMMENT_LENGTH = 1000;
 
 export default function PostModal({ 
@@ -368,11 +367,11 @@ const handleComment = async (e: React.FormEvent, parentCommentId?: string | null
           </div>
           <div className="mb-4">
             <div className="flex items-start space-x-3">
-              <Avatar 
-                src={post.user?.avatar_url ?? DEFAULT_AVATAR} 
-                alt={post.user?.username ?? 'Utilisateur inconnu'} 
-                className="w-10 h-10" 
-              />
+            <Avatar 
+              src={post.user?.avatar_url ?? DEFAULT_AVATAR} 
+              alt={post.user?.username ?? 'Utilisateur inconnu'} 
+              className="w-10 h-10" 
+            />
               <div className="flex-grow">
                 <div className="flex items-center space-x-2">
                   <span className="font-semibold text-white">{post.user?.username ?? 'Utilisateur inconnu'}</span>
@@ -530,7 +529,7 @@ const handleComment = async (e: React.FormEvent, parentCommentId?: string | null
   
     return (
       <div className={`flex items-start space-x-3 mb-2 ${depth > 0 ? `ml-${depth * 4}` : ''}`}>
-        <Avatar src={comment.user.avatar_url ?? DEFAULT_AVATAR} alt={comment.user.username} className="w-8 h-8" />
+        <Avatar src={comment.user.avatar_url ?? DEFAULT_AVATAR} alt={comment.user.username ?? 'Utilisateur inconnu'} className="w-8 h-8" />
         <div className="flex-grow">
           <div className="flex items-center space-x-2">
             <span className="font-semibold text-white">{comment.user.username}</span>

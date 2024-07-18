@@ -241,18 +241,20 @@ export default function Feed() {
       setLoading(false)
     }
   }
-  
+  const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3E%3Cpath d='M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z'/%3E%3C/svg%3E";
+
   const getAvatarUrl = (avatarPath: string | null | undefined) => {
-    if (!avatarPath) return '/default-avatar.png'
+    if (!avatarPath) return DEFAULT_AVATAR;
     if (avatarPath.startsWith('data:image')) {
-      return avatarPath
+      return avatarPath;
     }
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
-      return avatarPath
+      return avatarPath;
     }
-    const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath)
-    return data?.publicUrl ?? '/default-avatar.png'
-  }
+    const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath);
+    return data?.publicUrl ?? DEFAULT_AVATAR;
+  };  
+  
   
   const fetchLikedPosts = async (userId: string) => {
     const { data, error } = await supabase
@@ -458,11 +460,11 @@ export default function Feed() {
       {currentUser && (
         <form onSubmit={createPost} className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-4 mb-6">
           <div className="flex items-start space-x-4">
-            <Avatar 
-              src={currentUser.avatar_url || '/default-avatar.png'} 
-              alt={currentUser.username || 'User'} 
-              className="w-10 h-10" 
-            />
+          <Avatar 
+            src={getAvatarUrl(currentUser?.avatar_url)}
+            alt={currentUser?.username || 'Utilisateur'} 
+            className="w-10 h-10" 
+          />
             <div className="flex-grow">
               <textarea
                 ref={textareaRef}
