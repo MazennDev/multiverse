@@ -72,18 +72,49 @@ export default function Feed() {
       }
     };
   
-    fetchCurrentUser();
-  }, []);  
-
-  const setupRealtimeSubscription = () => {
-    const channel = supabase
-      .channel('public:posts')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, handleNewPost)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, handleUpdatedPost)
-      .subscribe()
+    const setupRealtimeSubscription = () => {
+      const channel = supabase
+        .channel('public:posts')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, handleNewPost)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, handleUpdatedPost)
+        .subscribe()
+    
+      realtimeChannelRef.current = channel
+    }
   
-    realtimeChannelRef.current = channel
-  }
+    const fetchLikedPosts = async (userId: string) => {
+      const { data, error } = await supabase
+        .from('likes')
+        .select('post_id')
+        .eq('user_id', userId);
+  
+      if (error) {
+        console.error('Error fetching liked posts:', error);
+      } else {
+        setLikedPosts(new Set(data.map(like => like.post_id)));
+      }
+    };
+  
+    fetchPosts();
+    fetchCurrentUser();
+    setupRealtimeSubscription();
+  
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        fetchCurrentUser();
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        setLikedPosts(new Set());
+      }
+    });
+  
+    return () => {
+      authListener.subscription.unsubscribe();
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+      }
+    };
+  }, []);
   
   const handleUpdatedPost = (payload: any) => {
     const updatedPost = payload.new as Post;
