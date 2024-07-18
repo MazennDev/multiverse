@@ -185,66 +185,66 @@ export default function PostModal({
     return roots;
   };
 
-// Add this function to your PostModal component
-const handleComment = async (e: React.FormEvent, parentCommentId?: string | null) => {
-  e.preventDefault();
-  if (!currentUser || !newComment.trim()) return;
-
-  try {
-    const { data, error } = await supabase
-      .from('comments')
-      .insert({
-        post_id: postId,
-        user_id: currentUser.id,
-        content: newComment.trim(),
-        parent_comment_id: parentCommentId || null,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    const commentWithUser = {
-      ...data,
-      user: {
-        username: currentUser.username || 'Unknown User',
-        avatar_url: currentUser.avatar_url || DEFAULT_AVATAR,
-      },
-    };
-
-    setComments(prevComments => {
-      const updatedComments = [...prevComments];
-      if (parentCommentId) {
-        const addReply = (comments: Comment[]): Comment[] => 
-          comments.map(c => {
-            if (c.id === parentCommentId) {
-              return { ...c, replies: [...(c.replies || []), commentWithUser] };
-            }
-            if (c.replies && c.replies.length > 0) {
-              return { ...c, replies: addReply(c.replies) };
-            }
-            return c;
-          });
-        return addReply(updatedComments);
-      } else {
-        return [...updatedComments, commentWithUser];
+  const handleComment = async (e: React.FormEvent, parentCommentId?: string | null) => {
+    e.preventDefault();
+    if (!currentUser || !newComment.trim()) return;
+  
+    try {
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          post_id: postId,
+          user_id: currentUser.id,
+          content: newComment.trim(),
+          parent_comment_id: parentCommentId || null,
+        })
+        .select()
+        .single();
+  
+      if (error) throw error;
+  
+      const commentWithUser: Comment = {
+        ...data,
+        user: {
+          username: currentUser.username || 'Utilisateur inconnu',
+          avatar_url: currentUser.avatar_url || DEFAULT_AVATAR,
+        },
+        replies: [],
+      };
+  
+      setComments(prevComments => {
+        const updatedComments = [...prevComments];
+        if (parentCommentId) {
+          const addReply = (comments: Comment[]): Comment[] => 
+            comments.map(c => {
+              if (c.id === parentCommentId) {
+                return { ...c, replies: [...(c.replies || []), commentWithUser] };
+              }
+              if (c.replies && c.replies.length > 0) {
+                return { ...c, replies: addReply(c.replies) };
+              }
+              return c;
+            });
+          return addReply(updatedComments);
+        } else {
+          return [...updatedComments, commentWithUser];
+        }
+      });
+  
+      setNewComment('');
+      setReplyingTo(null);
+      onCommentAdded(postId);
+  
+      // Update comment count
+      if (post) {
+        const updatedPost = { ...post, comment_count: (post.comment_count || 0) + 1 };
+        setPost(updatedPost);
       }
-    });
-
-    setNewComment('');
-    setReplyingTo(null);
-    onCommentAdded(postId);
-
-    // Update comment count
-    if (post) {
-      const updatedPost = { ...post, comment_count: (post.comment_count || 0) + 1 };
-      setPost(updatedPost);
+    } catch (error) {
+      console.error('Error adding comment:', error);
     }
-  } catch (error) {
-    console.error('Error adding comment:', error);
-  }
-};
-
+  };
+  
 
   const handleDeletePost = async () => {
     try {
