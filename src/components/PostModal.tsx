@@ -132,45 +132,28 @@ export default function PostModal({
     try {
       const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
-        .select('*')
+        .select('*, user:profiles(username, avatar_url)')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
   
       if (commentsError) throw commentsError;
   
-      const commentsWithUsers = await Promise.all(commentsData.map(async (comment) => {
-        const { data: userData, error: userError } = await supabase
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('id', comment.user_id)
-          .single();
-  
-        if (userError) {
-          console.error('Error fetching user data:', userError);
-          return {
-            ...comment,
-            user: {
-              username: 'Utilisateur inconnu',
-              avatar_url: DEFAULT_AVATAR,
-            },
-            replies: [],
-          };
-        }
-  
-        return {
-          ...comment,
-          user: userData,
-          replies: [],
-        };
+      const commentsWithReplies = commentsData.map(comment => ({
+        ...comment,
+        user: comment.user || {
+          username: 'Utilisateur inconnu',
+          avatar_url: DEFAULT_AVATAR,
+        },
+        replies: [],
       }));
   
-      // Build the comment tree
-      const commentTree = buildCommentTree(commentsWithUsers);
+      const commentTree = buildCommentTree(commentsWithReplies);
       setComments(commentTree);
     } catch (error) {
       console.error('Error fetching comments:', error);
     }
   };
+  
   
   const buildCommentTree = (comments: Comment[]): Comment[] => {
     const commentMap: { [key: string]: Comment } = {};
@@ -240,7 +223,7 @@ export default function PostModal({
           const addReply = (comments: Comment[]): Comment[] => 
             comments.map(c => {
               if (c.id === parentCommentId) {
-                return { ...c, replies: [...(c.replies || []), commentWithUser] };
+                return { ...c, replies: [...c.replies, commentWithUser] };
               }
               if (c.replies && c.replies.length > 0) {
                 return { ...c, replies: addReply(c.replies) };
@@ -266,6 +249,7 @@ export default function PostModal({
       console.error('Error adding comment:', error);
     }
   };
+  
   
   
   
