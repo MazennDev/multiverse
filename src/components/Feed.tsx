@@ -64,28 +64,16 @@ export default function Feed() {
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
-    fetchPosts()
-    fetchCurrentUser()
-    setupRealtimeSubscription()
-    fetchLikedPosts()
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        fetchCurrentUser()
-        fetchLikedPosts()
-      } else if (event === 'SIGNED_OUT') {
-        setCurrentUser(null)
-        setLikedPosts(new Set())
+    const fetchCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUser(user);
+        fetchLikedPosts(user.id);
       }
-    })
-
-    return () => {
-      authListener.subscription.unsubscribe()
-      if (realtimeChannelRef.current) {
-        supabase.removeChannel(realtimeChannelRef.current)
-      }
-    }
-  }, [])
+    };
+  
+    fetchCurrentUser();
+  }, []);  
 
   const setupRealtimeSubscription = () => {
     const channel = supabase
@@ -239,18 +227,18 @@ export default function Feed() {
   
   
 
-  const fetchLikedPosts = async () => {
-    if (!currentUser) return
+  const fetchLikedPosts = async (userId: string) => {
     const { data, error } = await supabase
       .from('likes')
       .select('post_id')
-      .eq('user_id', currentUser.id)
+      .eq('user_id', userId);
+  
     if (error) {
-      console.error('Error fetching liked posts:', error)
+      console.error('Error fetching liked posts:', error);
     } else {
-      setLikedPosts(new Set(data.map(like => like.post_id)))
+      setLikedPosts(new Set(data.map(like => like.post_id)));
     }
-  }
+  };  
   const handleComment = (postId: string) => {
     setSelectedPostId(postId)
   }
@@ -274,7 +262,9 @@ export default function Feed() {
   }
   const handleLike = async (postId: string) => {
     if (!currentUser) return;
+
     const isLiked = likedPosts.has(postId);
+    
     try {
       if (isLiked) {
         await supabase
@@ -282,39 +272,40 @@ export default function Feed() {
           .delete()
           .eq('user_id', currentUser.id)
           .eq('post_id', postId);
+        
         setLikedPosts(prev => {
           const newSet = new Set(prev);
           newSet.delete(postId);
           return newSet;
         });
       } else {
-        const { error } = await supabase
+        await supabase
           .from('likes')
           .insert({ user_id: currentUser.id, post_id: postId });
-        if (error && error.code === '23505') { // Unique constraint violation
-          console.log('Post already liked');
-        } else if (error) {
-          throw error;
-        } else {
-          setLikedPosts(prev => new Set(prev).add(postId));
-        }
+        
+        setLikedPosts(prev => new Set(prev).add(postId));
       }
-      // Update likes count
+
+      // Update the post's like count
       const { data } = await supabase
         .from('posts')
         .select('likes')
         .eq('id', postId)
         .single();
-      const newLikesCount = isLiked ? (data?.likes ?? 1) - 1 : (data?.likes ?? 0) + 1;
-      await supabase
-        .from('posts')
-        .update({ likes: newLikesCount })
-        .eq('id', postId);
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post.id === postId ? { ...post, likes: newLikesCount } : post
-        )
-      );
+
+      if (data) {
+        const newLikeCount = isLiked ? data.likes - 1 : data.likes + 1;
+        await supabase
+          .from('posts')
+          .update({ likes: newLikeCount })
+          .eq('id', postId);
+
+        setPosts(prevPosts =>
+          prevPosts.map(post =>
+            post.id === postId ? { ...post, likes: newLikeCount } : post
+          )
+        );
+      }
     } catch (error) {
       console.error('Error handling like:', error);
     }

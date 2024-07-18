@@ -43,6 +43,65 @@ export default function PostModal({
   useEffect(() => {
     fetchPost();
     fetchComments();
+
+    const subscription = supabase
+      .channel(`post_${postId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments', filter: `post_id=eq.${postId}` }, payload => {
+        if (payload.eventType === 'INSERT') {
+          const newComment = payload.new as Comment;
+          setComments(prevComments => {
+            const updatedComments = [...prevComments];
+            if (newComment.parent_comment_id) {
+              const addReply = (comments: Comment[]): Comment[] => 
+                comments.map(c => {
+                  if (c.id === newComment.parent_comment_id) {
+                    return { ...c, replies: [...c.replies, newComment] };
+                  }
+                  if (c.replies.length > 0) {
+                    return { ...c, replies: addReply(c.replies) };
+                  }
+                  return c;
+                });
+              return addReply(updatedComments);
+            } else {
+              return [...updatedComments, newComment];
+            }
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedComment = payload.new as Comment;
+          setComments(prevComments => {
+            const updateComment = (comments: Comment[]): Comment[] =>
+              comments.map(c => {
+                if (c.id === updatedComment.id) {
+                  return { ...c, ...updatedComment };
+                }
+                if (c.replies.length > 0) {
+                  return { ...c, replies: updateComment(c.replies) };
+                }
+                return c;
+              });
+            return updateComment(prevComments);
+          });
+        } else if (payload.eventType === 'DELETE') {
+          const deletedCommentId = payload.old.id;
+          setComments(prevComments => {
+            const deleteComment = (comments: Comment[]): Comment[] =>
+              comments.filter(c => {
+                if (c.id === deletedCommentId) return false;
+                if (c.replies.length > 0) {
+                  c.replies = deleteComment(c.replies);
+                }
+                return true;
+              });
+            return deleteComment(prevComments);
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [postId]);
 
   const fetchPost = async () => {
@@ -85,7 +144,6 @@ export default function PostModal({
         };
       }));
 
-      // Organize comments into a tree structure
       const commentTree = buildCommentTree(commentsWithUsers);
       setComments(commentTree);
     } catch (error) {
@@ -98,7 +156,7 @@ export default function PostModal({
     const roots: Comment[] = [];
 
     comments.forEach(comment => {
-      commentMap[comment.id] = { ...comment, replies: comment.replies || [] };
+      commentMap[comment.id] = { ...comment, replies: [] };
     });
 
     comments.forEach(comment => {
@@ -134,34 +192,6 @@ export default function PostModal({
         .single();
 
       if (error) throw error;
-
-      const commentWithUser = {
-        ...data,
-        user: {
-          username: currentUser.username,
-          avatar_url: currentUser.avatar_url,
-        },
-        replies: []
-      };
-
-      setComments(prevComments => {
-        const updatedComments = [...prevComments];
-        if (parentCommentId) {
-          const addReply = (comments: Comment[]): Comment[] => 
-            comments.map(c => {
-              if (c.id === parentCommentId) {
-                return { ...c, replies: [...c.replies, commentWithUser] };
-              }
-              if (c.replies.length > 0) {
-                return { ...c, replies: addReply(c.replies) };
-              }
-              return c;
-            });
-          return addReply(updatedComments);
-        } else {
-          return [...updatedComments, commentWithUser];
-        }
-      });
 
       setNewComment('');
       setReplyingTo(null);
@@ -205,19 +235,6 @@ export default function PostModal({
         .eq('id', commentId);
   
       if (error) throw error;
-  
-      // Update local state
-      setComments(prevComments => {
-        const updateComments = (comments: Comment[]): Comment[] => 
-          comments.filter(c => {
-            if (c.id === commentId) return false;
-            if (c.replies.length > 0) {
-              c.replies = updateComments(c.replies);
-            }
-            return true;
-          });
-        return updateComments(prevComments);
-      });
       
       // Update comment count
       if (post) {
@@ -246,19 +263,6 @@ export default function PostModal({
 
       if (error) throw error;
 
-      setComments(prevComments => {
-        const updateComments = (comments: Comment[]): Comment[] =>
-          comments.map(c => {
-            if (c.id === commentId) {
-              return { ...c, content: newContent };
-            }
-            if (c.replies.length > 0) {
-              return { ...c, replies: updateComments(c.replies) };
-            }
-            return c;
-          });
-        return updateComments(prevComments);
-      });
       setEditingCommentId(null);
     } catch (error) {
       console.error('Error editing comment:', error);
@@ -425,28 +429,37 @@ export default function PostModal({
           </div>
           {currentUser && (
             <form onSubmit={(e) => handleComment(e, replyingTo)} className="mt-4">
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value.slice(0, MAX_COMMENT_LENGTH))}
-                placeholder={replyingTo ? "Write a reply..." : "Add a comment..."}
-                className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none"
-                rows={3}
-                maxLength={MAX_COMMENT_LENGTH}
-              />
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-sm text-gray-400">{newComment.length}/{MAX_COMMENT_LENGTH}</span>
-                <div>
-                  {replyingTo && (
-                    <Button 
-                      onClick={() => setReplyingTo(null)} 
-                      className="mr-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-1 rounded-full text-sm"
-                    >
-                      Cancel Reply
-                    </Button>
-                  )}
-                  <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
-                    {replyingTo ? "Post Reply" : "Post Comment"}
-                  </Button>
+              <div className="flex items-start space-x-3">
+              <Avatar 
+  src={currentUser?.avatar_url ?? ''} 
+  alt={currentUser?.username ?? 'User'} 
+  className="w-10 h-10" 
+/>
+                <div className="flex-grow">
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value.slice(0, MAX_COMMENT_LENGTH))}
+                    placeholder={replyingTo ? "Write a reply..." : "What's on your mind?"}
+                    className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    maxLength={MAX_COMMENT_LENGTH}
+                  />
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-gray-400">{newComment.length}/{MAX_COMMENT_LENGTH}</span>
+                    <div>
+                      {replyingTo && (
+                        <Button 
+                          onClick={() => setReplyingTo(null)} 
+                          className="mr-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-1 rounded-full text-sm"
+                        >
+                          Cancel Reply
+                        </Button>
+                      )}
+                      <Button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm">
+                        {replyingTo ? "Post Reply" : "Post Comment"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </form>
@@ -498,53 +511,52 @@ function CommentItem({
         {editingCommentId === comment.id ? (
           <div>
             <textarea
-                            value={editedContent}
-                            onChange={(e) => setEditedContent(e.target.value)}
-                            className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none mt-1"
-                            rows={2}
-                          />
-                          <div className="flex space-x-2 mt-1">
-                            <Button onClick={handleEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-full text-xs">
-                              Save
-                            </Button>
-                            <Button onClick={() => setEditingCommentId(null)} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded-full text-xs">
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-gray-200">{comment.content}</p>
-                      )}
-                      <div className="flex space-x-2 mt-1">
-                        <Button onClick={onReply} className="text-blue-400 hover:text-blue-500 text-xs">
-                          Reply
-                        </Button>
-                        {currentUser && currentUser.id === comment.user_id && (
-                          <>
-                            <Button onClick={() => setEditingCommentId(comment.id)} className="text-yellow-400 hover:text-yellow-500 text-xs">
-                              Edit
-                            </Button>
-                            <Button onClick={() => onDelete(comment.id)} className="text-red-400 hover:text-red-500 text-xs">
-                              Delete
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                      {comment.replies && comment.replies.map(reply => (
-                        <CommentItem
-                          key={reply.id}
-                          comment={reply}
-                          currentUser={currentUser}
-                          onReply={onReply}
-                          onDelete={onDelete}
-                          onEdit={onEdit}
-                          setEditingCommentId={setEditingCommentId}
-                          editingCommentId={editingCommentId}
-                          depth={depth + 1}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              }
-              
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              className="w-full p-2 bg-gray-700 text-white rounded-lg resize-none mt-1"
+              rows={2}
+            />
+            <div className="flex space-x-2 mt-1">
+              <Button onClick={handleEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-full text-xs">
+                Save
+              </Button>
+              <Button onClick={() => setEditingCommentId(null)} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded-full text-xs">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-200">{comment.content}</p>
+        )}
+        <div className="flex space-x-2 mt-1">
+          <Button onClick={onReply} className="text-blue-400 hover:text-blue-500 text-xs">
+            Reply
+          </Button>
+          {currentUser && currentUser.id === comment.user_id && (
+            <>
+              <Button onClick={() => setEditingCommentId(comment.id)} className="text-yellow-400 hover:text-yellow-500 text-xs">
+                Edit
+              </Button>
+              <Button onClick={() => onDelete(comment.id)} className="text-red-400 hover:text-red-500 text-xs">
+                Delete
+              </Button>
+            </>
+          )}
+        </div>
+        {comment.replies && comment.replies.map(reply => (
+          <CommentItem
+            key={reply.id}
+            comment={reply}
+            currentUser={currentUser}
+            onReply={onReply}
+            onDelete={onDelete}
+            onEdit={onEdit}
+            setEditingCommentId={setEditingCommentId}
+            editingCommentId={editingCommentId}
+            depth={depth + 1}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
